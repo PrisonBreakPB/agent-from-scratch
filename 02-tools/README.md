@@ -18,6 +18,19 @@
 
 但那只是核心逻辑，这一节我们来实现完整的 Agent，包括工具定义、参数解析等。
 
+### 工具的组成
+
+每个工具由三部分组成：
+
+1. **name**：工具名称，LLM 用这个名字来调用
+2. **description**：工具描述，LLM 根据这个决定什么时候用
+3. **执行函数**：实际执行的 Python 函数
+
+例如 bash 工具：
+- name: `bash`
+- description: `执行 bash 命令，用于运行程序、系统操作等`
+- 执行函数: `def bash(command: str) -> str: ...`
+
 ### 项目结构
 
 ```
@@ -37,6 +50,9 @@
 ## 核心代码
 
 ### tools/bash.py - bash 工具
+
+**name:** `bash`
+**description:** `执行 bash 命令，用于运行程序、系统操作等`
 
 ```python
 import re
@@ -79,6 +95,9 @@ def bash(command: str) -> str:
 
 ### tools/read_file.py - 读取文件
 
+**name:** `read_file`
+**description:** `读取文件内容`
+
 ```python
 def read_file(path: str) -> str:
     """读取文件内容"""
@@ -90,6 +109,9 @@ def read_file(path: str) -> str:
 ```
 
 ### tools/write_file.py - 写入文件
+
+**name:** `write_file`
+**description:** `写入文件内容，会覆盖原有内容`
 
 ```python
 import os
@@ -106,6 +128,9 @@ def write_file(path: str, content: str) -> str:
 ```
 
 ### tools/edit_file.py - 编辑文件
+
+**name:** `edit_file`
+**description:** `编辑文件，替换指定的文本内容`
 
 ```python
 def edit_file(path: str, old_text: str, new_text: str) -> str:
@@ -125,6 +150,9 @@ def edit_file(path: str, old_text: str, new_text: str) -> str:
 
 ### tools/glob.py - 查找文件
 
+**name:** `glob`
+**description:** `查找匹配模式的文件，支持通配符`
+
 ```python
 import glob as glob_module
 
@@ -140,6 +168,9 @@ def glob(pattern: str) -> str:
 ```
 
 ### tools/grep.py - 搜索内容
+
+**name:** `grep`
+**description:** `在文件中搜索内容`
 
 ```python
 import subprocess
