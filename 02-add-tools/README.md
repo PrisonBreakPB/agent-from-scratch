@@ -28,34 +28,97 @@
 
 有了这些工具，Agent 就能真正帮你写代码、改配置。
 
-### 整体结构
+### 项目结构
 
 ```
-工具实现（Python 函数）
-    ↓
-工具 Schema（告诉 LLM）
-    ↓
-函数映射（名字 → 函数）
-    ↓
-Agent 循环中使用
+02-add-tools/
+├── main.py              # 入口文件
+├── agent.py             # Agent 循环逻辑
+└── tools/
+    ├── __init__.py      # 工具注册
+    ├── bash.py          # bash 工具
+    ├── read_file.py     # 读文件
+    ├── write_file.py    # 写文件
+    ├── edit_file.py     # 编辑文件
+    ├── glob.py          # 查找文件
+    └── grep.py          # 搜索内容
 ```
+
+为什么要这样组织？
+- 每个工具一个文件，方便查找和修改
+- agent.py 单独存放，逻辑清晰
+- tools/__init__.py 统一注册，添加新工具只需改这里
 
 ## 核心代码
 
+### tools/__init__.py - 工具注册
+
 ```python
-import json
-import os
-import glob as glob_module
+from .bash import bash
+from .read_file import read_file
+from .write_file import write_file
+from .edit_file import edit_file
+from .glob import glob
+from .grep import grep
+
+# 工具 Schema
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "bash",
+            "description": "执行 bash 命令，用于运行程序、系统操作等",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {"type": "string", "description": "要执行的 bash 命令"}
+                },
+                "required": ["command"]
+            }
+        }
+    },
+    # ... 其他工具
+]
+
+# 函数映射
+available_functions = {
+    "bash": bash,
+    "read_file": read_file,
+    "write_file": write_file,
+    "edit_file": edit_file,
+    "glob": glob,
+    "grep": grep
+}
+```
+
+### tools/bash.py - bash 工具
+
+```python
+import re
 import subprocess
-from openai import OpenAI
 
-client = OpenAI()
-MAX_STEPS = 10
-
-# ========== 工具实现 ==========
+# 危险命令模式
+DANGEROUS_PATTERNS = [
+    r'\brm\s+(-[a-zA-Z]*r|--recursive)',  # rm -r, rm -rf
+    r'\brmdir\b',                          # rmdir
+    r'\bmkfs\b',                           # mkfs
+    r'\bdd\b.*of=/dev/',                   # dd of=/dev/...
+    r'\bformat\b',                         # format
+    r'>\s*/dev/',                          # 重定向到设备
+    r'\bshutdown\b',                       # shutdown
+    r'\breboot\b',                         # reboot
+    r'\binit\s+0\b',                       # init 0
+    r'\bkill\s+-9\s+1\b',                  # kill -9 1
+    r':\(\)\{.*\|.*&\}',                   # fork bomb
+]
 
 def bash(command: str) -> str:
-    """执行 bash 命令"""
+    """执行 bash 命令，会检查危险命令"""
+    # 检查危险命令
+    for pattern in DANGEROUS_PATTERNS:
+        if re.search(pattern, command, re.IGNORECASE):
+            return f"Error: 检测到危险命令，拒绝执行: {command}"
+
     try:
         result = subprocess.run(
             command,
@@ -67,195 +130,23 @@ def bash(command: str) -> str:
         return result.stdout + result.stderr
     except Exception as e:
         return f"Error: {e}"
+```
 
-def read_file(path: str) -> str:
-    """读取文件内容"""
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except Exception as e:
-        return f"Error: {e}"
+**危险命令检查：**
+- 使用正则表达式匹配危险命令模式
+- 包括：rm -r、mkfs、dd、shutdown 等
+- 匹配到则拒绝执行，返回错误信息
 
-def write_file(path: str, content: str) -> str:
-    """写入文件内容"""
-    try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        return f"Successfully wrote to {path}"
-    except Exception as e:
-        return f"Error: {e}"
+### agent.py - Agent 循环
 
-def edit_file(path: str, old_text: str, new_text: str) -> str:
-    """编辑文件，替换指定内容"""
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        if old_text not in content:
-            return f"Error: '{old_text}' not found in {path}"
-        content = content.replace(old_text, new_text, 1)
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        return f"Successfully edited {path}"
-    except Exception as e:
-        return f"Error: {e}"
+```python
+import json
+from openai import OpenAI
 
-def glob(pattern: str) -> str:
-    """查找匹配模式的文件"""
-    try:
-        files = glob_module.glob(pattern, recursive=True)
-        if not files:
-            return "No files found"
-        return "\n".join(files)
-    except Exception as e:
-        return f"Error: {e}"
+from tools import tools, available_functions
 
-def grep(pattern: str, path: str = ".") -> str:
-    """在文件中搜索内容"""
-    try:
-        result = subprocess.run(
-            ["grep", "-r", "-n", pattern, path],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        return result.stdout or "No matches found"
-    except Exception as e:
-        return f"Error: {e}"
-
-# ========== 工具注册 ==========
-
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "bash",
-            "description": "执行 bash 命令，用于运行程序、系统操作等",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "command": {
-                        "type": "string",
-                        "description": "要执行的 bash 命令"
-                    }
-                },
-                "required": ["command"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "read_file",
-            "description": "读取文件内容",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "文件路径"
-                    }
-                },
-                "required": ["path"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "write_file",
-            "description": "写入文件内容，会覆盖原有内容",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "文件路径"
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "要写入的内容"
-                    }
-                },
-                "required": ["path", "content"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "edit_file",
-            "description": "编辑文件，替换指定的文本内容",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "文件路径"
-                    },
-                    "old_text": {
-                        "type": "string",
-                        "description": "要替换的原文本"
-                    },
-                    "new_text": {
-                        "type": "string",
-                        "description": "替换后的新文本"
-                    }
-                },
-                "required": ["path", "old_text", "new_text"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "glob",
-            "description": "查找匹配模式的文件，支持通配符",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "pattern": {
-                        "type": "string",
-                        "description": "文件匹配模式，如 '*.py' 或 '**/*.txt'"
-                    }
-                },
-                "required": ["pattern"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "grep",
-            "description": "在文件中搜索内容",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "pattern": {
-                        "type": "string",
-                        "description": "搜索的文本或正则表达式"
-                    },
-                    "path": {
-                        "type": "string",
-                        "description": "搜索路径，默认为当前目录"
-                    }
-                },
-                "required": ["pattern"]
-            }
-        }
-    }
-]
-
-available_functions = {
-    "bash": bash,
-    "read_file": read_file,
-    "write_file": write_file,
-    "edit_file": edit_file,
-    "glob": glob,
-    "grep": grep
-}
-
-# ========== Agent 循环 ==========
+client = OpenAI()
+MAX_STEPS = 10
 
 def agent_loop(user_input: str) -> str:
     messages = [
@@ -302,8 +193,12 @@ def agent_loop(user_input: str) -> str:
             })
 
     return "达到最大步数限制"
+```
 
-# ========== CLI 入口 ==========
+### main.py - 入口文件
+
+```python
+from agent import agent_loop
 
 if __name__ == "__main__":
     print("=== Agent with File Tools ===")
@@ -323,164 +218,14 @@ if __name__ == "__main__":
             break
 ```
 
-## 逐行讲解
-
-### 第一部分：工具实现
-
-**bash 工具**
-
-```python
-def bash(command: str) -> str:
-    try:
-        result = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        return result.stdout + result.stderr
-    except Exception as e:
-        return f"Error: {e}"
-```
-
-执行系统命令，返回输出结果。
-
-**read_file 工具**
-
-```python
-def read_file(path: str) -> str:
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except Exception as e:
-        return f"Error: {e}"
-```
-
-读取文件内容，返回字符串。
-
-**write_file 工具**
-
-```python
-def write_file(path: str, content: str) -> str:
-    try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        return f"Successfully wrote to {path}"
-    except Exception as e:
-        return f"Error: {e}"
-```
-
-写入文件，如果目录不存在会自动创建。
-
-**edit_file 工具**
-
-```python
-def edit_file(path: str, old_text: str, new_text: str) -> str:
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        if old_text not in content:
-            return f"Error: '{old_text}' not found in {path}"
-        content = content.replace(old_text, new_text, 1)
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        return f"Successfully edited {path}"
-    except Exception as e:
-        return f"Error: {e}"
-```
-
-编辑文件，只替换第一次出现的文本。
-
-**glob 工具**
-
-```python
-def glob(pattern: str) -> str:
-    try:
-        files = glob_module.glob(pattern, recursive=True)
-        if not files:
-            return "No files found"
-        return "\n".join(files)
-    except Exception as e:
-        return f"Error: {e}"
-```
-
-查找匹配模式的文件，支持 `*` 和 `**` 通配符。
-
-**grep 工具**
-
-```python
-def grep(pattern: str, path: str = ".") -> str:
-    try:
-        result = subprocess.run(
-            ["grep", "-r", "-n", pattern, path],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        return result.stdout or "No matches found"
-    except Exception as e:
-        return f"Error: {e}"
-```
-
-在文件中搜索内容，返回匹配的行。
-
-### 第二部分：工具 Schema
-
-每个工具都有一个 Schema，告诉 LLM：
-- 工具叫什么名字
-- 工具是干什么的
-- 需要什么参数
-
-**关键：** `description` 写得好，LLM 就能更准确地决定什么时候用这个工具。
-
-### 第三部分：函数映射
-
-```python
-available_functions = {
-    "bash": bash,
-    "read_file": read_file,
-    "write_file": write_file,
-    "edit_file": edit_file,
-    "glob": glob,
-    "grep": grep
-}
-```
-
-用字典把工具名和实际函数关联起来。
-
-这样 LLM 返回 `"read_file"` 时，我们知道要调用 `read_file()` 函数。
-
-### 第四部分：Agent 循环
-
-```python
-def agent_loop(user_input: str) -> str:
-    messages = [...]
-
-    for step in range(MAX_STEPS):
-        response = client.chat.completions.create(...)
-        msg = response.choices[0].message
-        messages.append(msg)
-
-        if not msg.tool_calls:
-            return msg.content
-
-        for tc in msg.tool_calls:
-            # 解析参数、执行工具、结果放回消息
-            ...
-```
-
-这就是上一节伪代码的真正实现。
-
 ## 运行效果
 
 ```
 你: 当前目录有什么文件？
 AI: 当前目录有以下文件：
 - main.py
-- README.md
-- requirements.txt
+- agent.py
+- tools/
 
 你: 读取 main.py 的内容
 AI: [显示 main.py 的内容]
@@ -488,18 +233,8 @@ AI: [显示 main.py 的内容]
 你: 创建一个新文件 hello.txt，写入 "Hello World"
 AI: 已创建文件 hello.txt，内容为 "Hello World"。
 
-你: 在 hello.txt 中把 "World" 改成 "Agent"
-AI: 已编辑文件 hello.txt，将 "World" 改为 "Agent"。
-
-你: 搜索所有 Python 文件
-AI: 找到以下 Python 文件：
-- main.py
-- utils.py
-
-你: 在 main.py 中搜索 "def" 关键字
-AI: 找到以下匹配：
-- main.py:10:def bash(command: str) -> str:
-- main.py:25:def read_file(path: str) -> str:
+你: 删除 hello.txt
+AI: Error: 检测到危险命令，拒绝执行: rm hello.txt
 ```
 
 ## 如何添加新工具
@@ -507,28 +242,16 @@ AI: 找到以下匹配：
 只需 3 步：
 
 ```python
-# 1. 写函数
-def my_new_tool(param: str) -> str:
+# 1. 创建 tools/my_tool.py
+def my_tool(param: str) -> str:
     return "result"
 
-# 2. 添加 Schema
-tools.append({
-    "type": "function",
-    "function": {
-        "name": "my_new_tool",
-        "description": "描述这个工具干什么",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "param": {"type": "string", "description": "参数说明"}
-            },
-            "required": ["param"]
-        }
-    }
-})
+# 2. 在 tools/__init__.py 中导入
+from .my_tool import my_tool
 
-# 3. 注册映射
-available_functions["my_new_tool"] = my_new_tool
+# 3. 添加 Schema 和映射
+tools.append({...})
+available_functions["my_tool"] = my_tool
 ```
 
 ## 下一步

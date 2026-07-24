@@ -63,361 +63,57 @@ result = available_functions[func_name](**args)  # 函数执行错误
 
 ## 核心代码
 
-```python
-import json
-import os
-import glob as glob_module
-import subprocess
-from openai import OpenAI
+这一节的代码和上一节基本相同，错误处理已经内置在每个工具和 agent 循环中：
 
-client = OpenAI()
-MAX_STEPS = 10
-
-# 工具实现
-def bash(command: str) -> str:
-    """执行 bash 命令"""
-    try:
-        result = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        return result.stdout + result.stderr
-    except Exception as e:
-        return f"Error: {e}"
-
-def read_file(path: str) -> str:
-    """读取文件内容"""
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except Exception as e:
-        return f"Error: {e}"
-
-def write_file(path: str, content: str) -> str:
-    """写入文件内容"""
-    try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        return f"Successfully wrote to {path}"
-    except Exception as e:
-        return f"Error: {e}"
-
-def edit_file(path: str, old_text: str, new_text: str) -> str:
-    """编辑文件，替换指定内容"""
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        if old_text not in content:
-            return f"Error: '{old_text}' not found in {path}"
-        content = content.replace(old_text, new_text, 1)
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        return f"Successfully edited {path}"
-    except Exception as e:
-        return f"Error: {e}"
-
-def glob(pattern: str) -> str:
-    """查找匹配模式的文件"""
-    try:
-        files = glob_module.glob(pattern, recursive=True)
-        if not files:
-            return "No files found"
-        return "\n".join(files)
-    except Exception as e:
-        return f"Error: {e}"
-
-def grep(pattern: str, path: str = ".") -> str:
-    """在文件中搜索内容"""
-    try:
-        result = subprocess.run(
-            ["grep", "-r", "-n", pattern, path],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        return result.stdout or "No matches found"
-    except Exception as e:
-        return f"Error: {e}"
-
-# 工具注册
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "bash",
-            "description": "执行 bash 命令，用于运行程序、系统操作等",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "command": {
-                        "type": "string",
-                        "description": "要执行的 bash 命令"
-                    }
-                },
-                "required": ["command"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "read_file",
-            "description": "读取文件内容",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "文件路径"
-                    }
-                },
-                "required": ["path"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "write_file",
-            "description": "写入文件内容，会覆盖原有内容",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "文件路径"
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "要写入的内容"
-                    }
-                },
-                "required": ["path", "content"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "edit_file",
-            "description": "编辑文件，替换指定的文本内容",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "文件路径"
-                    },
-                    "old_text": {
-                        "type": "string",
-                        "description": "要替换的原文本"
-                    },
-                    "new_text": {
-                        "type": "string",
-                        "description": "替换后的新文本"
-                    }
-                },
-                "required": ["path", "old_text", "new_text"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "glob",
-            "description": "查找匹配模式的文件，支持通配符",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "pattern": {
-                        "type": "string",
-                        "description": "文件匹配模式，如 '*.py' 或 '**/*.txt'"
-                    }
-                },
-                "required": ["pattern"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "grep",
-            "description": "在文件中搜索内容",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "pattern": {
-                        "type": "string",
-                        "description": "搜索的文本或正则表达式"
-                    },
-                    "path": {
-                        "type": "string",
-                        "description": "搜索路径，默认为当前目录"
-                    }
-                },
-                "required": ["pattern"]
-            }
-        }
-    }
-]
-
-available_functions = {
-    "bash": bash,
-    "read_file": read_file,
-    "write_file": write_file,
-    "edit_file": edit_file,
-    "glob": glob,
-    "grep": grep
-}
-
-def agent_loop(user_input: str) -> str:
-    messages = [
-        {"role": "system", "content": "你是一个有用的助手，可以使用工具来回答问题。"},
-        {"role": "user", "content": user_input}
-    ]
-
-    for step in range(MAX_STEPS):
-        # 1. API 调用错误
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=messages,
-                tools=tools
-            )
-        except Exception as e:
-            return f"API 调用失败: {e}"
-
-        msg = response.choices[0].message
-        messages.append(msg)
-
-        # 2. 没有工具调用，返回最终回答
-        if not msg.tool_calls:
-            return msg.content or "无响应内容"
-
-        # 3. 处理工具调用
-        for tc in msg.tool_calls:
-            func_name = tc.function.name
-
-            # 4. 参数解析错误
-            try:
-                args = json.loads(tc.function.arguments)
-            except json.JSONDecodeError:
-                args = {}
-
-            # 5. 未知工具错误
-            if func_name not in available_functions:
-                result = f"Error: 未知工具 {func_name}"
-            else:
-                # 6. 工具执行错误
-                try:
-                    result = available_functions[func_name](**args)
-                except Exception as e:
-                    result = f"Error: {e}"
-
-            # 7. 把结果（成功或失败）告诉 LLM
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tc.id,
-                "content": str(result)
-            })
-
-    return "达到最大步数限制"
-
-if __name__ == "__main__":
-    print("=== 03-error-handling ===")
-    print("支持工具：get_time, calculate")
-    print("输入 exit 退出\n")
-
-    while True:
-        try:
-            user_input = input("你: ").strip()
-            if user_input.lower() in ["exit", "quit", "q"]:
-                break
-            if not user_input:
-                continue
-            print(f"\nAI: {agent_loop(user_input)}\n")
-        except KeyboardInterrupt:
-            print("\n再见！")
-            break
-```
-
-## 逐行讲解
-
-### 第一部分：API 调用错误
+### agent.py 中的错误处理
 
 ```python
+# API 调用错误
 try:
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=messages,
-        tools=tools
-    )
+    response = client.chat.completions.create(...)
 except Exception as e:
     return f"API 调用失败: {e}"
-```
 
-可能的错误：
-- 网络连接失败
-- API Key 无效
-- 额度用完了
-- 服务器错误
-
-这里选择直接返回错误信息给用户，因为没有 LLM 可以帮忙。
-
-### 第二部分：参数解析错误
-
-```python
+# 参数解析错误
 try:
     args = json.loads(tc.function.arguments)
 except json.JSONDecodeError:
     args = {}
-```
 
-LLM 有时会返回不合法的 JSON。解析失败时，我们给一个空字典，让工具自己处理缺失参数。
-
-### 第三部分：未知工具错误
-
-```python
+# 未知工具错误
 if func_name not in available_functions:
     result = f"Error: 未知工具 {func_name}"
-```
+else:
+    # 工具执行错误
+    try:
+        result = available_functions[func_name](**args)
+    except Exception as e:
+        result = f"Error: {e}"
 
-LLM 可能会"幻觉"出一个不存在的工具名。我们把错误告诉 LLM，它会意识到自己犯错了。
-
-### 第四部分：工具执行错误
-
-```python
-try:
-    result = available_functions[func_name](**args)
-except Exception as e:
-    result = f"Error: {e}"
-```
-
-工具执行可能失败，比如：
-- 用户输入了不合法的表达式
-- 除以零
-- 文件不存在
-
-**关键：** 把错误信息作为工具结果返回给 LLM，而不是崩溃。
-
-### 第五部分：错误信息也是结果
-
-```python
+# 把结果（成功或失败）告诉 LLM
 messages.append({
-    "tool_call_id": tc.id,
     "role": "tool",
-    "content": str(result)  # 可能是正常结果，也可能是错误信息
+    "tool_call_id": tc.id,
+    "content": str(result)
 })
 ```
 
-LLM 看到错误信息后，可能会：
-- 换个方式重试
-- 告诉用户发生了什么
-- 放弃这个任务
+### tools/bash.py 中的错误处理
+
+```python
+def bash(command: str) -> str:
+    # 危险命令检查
+    for pattern in DANGEROUS_PATTERNS:
+        if re.search(pattern, command, re.IGNORECASE):
+            return f"Error: 检测到危险命令，拒绝执行: {command}"
+
+    # 命令执行错误
+    try:
+        result = subprocess.run(...)
+        return result.stdout + result.stderr
+    except Exception as e:
+        return f"Error: {e}"
+```
 
 ## 运行效果
 
@@ -431,15 +127,15 @@ AI: 100 * 2 = 200
 ### 工具错误，LLM 自己调整
 
 ```
-你: 计算 abc
-AI: 抱歉，"abc" 不是一个有效的数学表达式。请提供一个数字表达式，比如 2+2 或 100*2。
+你: 读取不存在的文件
+AI: 抱歉，文件不存在。请检查文件路径是否正确。
 ```
 
 ### 未知工具，LLM 知道犯错了
 
 ```
 你: 帮我翻译一句话
-AI: 抱歉，我目前只有获取时间和计算数学表达式的工具，没有翻译功能。
+AI: 抱歉，我目前只有文件操作工具，没有翻译功能。
 ```
 
 ## 下一步
