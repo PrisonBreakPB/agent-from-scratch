@@ -85,8 +85,8 @@ def agent_loop(user_input: str) -> str:
                     result = f"Error: {e}"
 
             messages.append({
-                "tool_call_id": tc.id,
                 "role": "tool",
+                "tool_call_id": tc.id,
                 "content": str(result)
             })
 

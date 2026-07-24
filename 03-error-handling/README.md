@@ -154,8 +154,8 @@ def agent_loop(user_input: str) -> str:
 
             # 7. 把结果（成功或失败）告诉 LLM
             messages.append({
-                "tool_call_id": tc.id,
                 "role": "tool",
+                "tool_call_id": tc.id,
                 "content": str(result)
             })
 
@@ -275,12 +275,6 @@ AI: 抱歉，"abc" 不是一个有效的数学表达式。请提供一个数字�
 你: 帮我翻译一句话
 AI: 抱歉，我目前只有获取时间和计算数学表达式的工具，没有翻译功能。
 ```
-
-## 思考题
-
-1. 为什么要把错误信息返回给 LLM，而不是直接告诉用户？
-2. 如果 API 调用失败，为什么选择直接返回而不是重试？
-3. `MAX_STEPS` 的作用是什么？如果没有会怎样？
 
 ## 下一步
 

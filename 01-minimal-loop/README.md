@@ -132,8 +132,8 @@ def agent_loop(user_input):
         for tc in msg.tool_calls:
             result = execute_tool(tc)
             messages.append({
-                "tool_call_id": tc.id,
                 "role": "tool",
+                "tool_call_id": tc.id,
                 "content": result
             })
 ```
@@ -203,12 +203,6 @@ LLM 返回的响应可能包含 `tool_calls`，表示它想调用某个工具。
 ### 工具结果
 
 执行工具后，要把结果放回 messages，让 LLM 看到执行结果。
-
-## 思考题
-
-1. 为什么需要 `messages.append(response)`？
-2. 如果去掉 `if not response.tool_calls` 会怎样？
-3. 为什么要把工具结果放回 messages？
 
 ## 下一步
 

@@ -125,8 +125,8 @@ def agent_loop(user_input: str) -> str:
                     result = f"Error: {e}"
 
             messages.append({
-                "tool_call_id": tc.id,
                 "role": "tool",
+                "tool_call_id": tc.id,
                 "content": str(result)
             })
 
@@ -296,13 +296,6 @@ tools.append({
 # 3. 注册映射
 available_functions["my_new_tool"] = my_new_tool
 ```
-
-## 思考题
-
-1. 为什么需要 `available_functions` 字典？
-2. `json.loads()` 和 `eval()` 有什么区别？
-3. 如果 LLM 调用一个不存在的工具会怎样？
-4. `timeout=30` 的作用是什么？
 
 ## 下一步
 

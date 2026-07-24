@@ -92,8 +92,8 @@ def agent_loop(user_input: str) -> str:
 
             # 7. 把结果（成功或失败）告诉 LLM
             messages.append({
-                "tool_call_id": tc.id,
                 "role": "tool",
+                "tool_call_id": tc.id,
                 "content": str(result)
             })
 
