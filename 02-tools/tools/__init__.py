@@ -11,7 +11,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "bash",
-            "description": "执行 bash 命令，用于运行程序、系统操作等",
+            "description": "执行 bash 命令，用于运行程序、系统操作等。适合执行 shell 命令、git 操作、运行脚本等。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -28,7 +28,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "read_file",
-            "description": "读取文件内容",
+            "description": "读取文件内容。在编辑文件前，应该先用这个工具读取文件内容。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -45,7 +45,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "write_file",
-            "description": "写入文件内容，会覆盖原有内容",
+            "description": "创建新文件或完全重写已有文件。适合创建新文件、写入完整内容。如果只是修改已有文件的一小部分，请用 edit_file。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -66,7 +66,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "edit_file",
-            "description": "编辑文件，替换指定的文本内容",
+            "description": "编辑已有文件，替换指定的文本内容。适合修改文件的一小部分（如改一行代码、加一个函数）。如果是创建新文件或完全重写，请用 write_file。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -91,7 +91,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "glob",
-            "description": "查找匹配模式的文件，支持通配符",
+            "description": "查找匹配模式的文件，支持通配符。适合查找特定类型的文件（如所有 .py 文件）。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -108,7 +108,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "grep",
-            "description": "在文件中搜索内容",
+            "description": "在文件中搜索内容。适合查找特定代码、函数名、变量名等。返回匹配的文件路径和行号。",
             "parameters": {
                 "type": "object",
                 "properties": {

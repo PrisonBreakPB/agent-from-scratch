@@ -66,7 +66,7 @@ result = execute_tool(tc)  # 这是什么？怎么执行的？
 ### tools/bash.py - bash 工具
 
 **name:** `bash`
-**description:** `执行 bash 命令，用于运行程序、系统操作等`
+**description:** `执行 bash 命令，用于运行程序、系统操作等。适合执行 shell 命令、git 操作、运行脚本等。`
 
 ```python
 import re
@@ -110,7 +110,7 @@ def bash(command: str) -> str:
 ### tools/read_file.py - 读取文件
 
 **name:** `read_file`
-**description:** `读取文件内容`
+**description:** `读取文件内容。在编辑文件前，应该先用这个工具读取文件内容。`
 
 ```python
 def read_file(path: str) -> str:
@@ -125,7 +125,7 @@ def read_file(path: str) -> str:
 ### tools/write_file.py - 写入文件
 
 **name:** `write_file`
-**description:** `写入文件内容，会覆盖原有内容`
+**description:** `创建新文件或完全重写已有文件。适合创建新文件、写入完整内容。如果只是修改已有文件的一小部分，请用 edit_file。`
 
 ```python
 import os
@@ -144,7 +144,7 @@ def write_file(path: str, content: str) -> str:
 ### tools/edit_file.py - 编辑文件
 
 **name:** `edit_file`
-**description:** `编辑文件，替换指定的文本内容`
+**description:** `编辑已有文件，替换指定的文本内容。适合修改文件的一小部分（如改一行代码、加一个函数）。如果是创建新文件或完全重写，请用 write_file。`
 
 ```python
 def edit_file(path: str, old_text: str, new_text: str) -> str:
@@ -165,7 +165,7 @@ def edit_file(path: str, old_text: str, new_text: str) -> str:
 ### tools/glob.py - 查找文件
 
 **name:** `glob`
-**description:** `查找匹配模式的文件，支持通配符`
+**description:** `查找匹配模式的文件，支持通配符。适合查找特定类型的文件（如所有 .py 文件）。`
 
 ```python
 import glob as glob_module
@@ -184,7 +184,7 @@ def glob(pattern: str) -> str:
 ### tools/grep.py - 搜索内容
 
 **name:** `grep`
-**description:** `在文件中搜索内容`
+**description:** `在文件中搜索内容。适合查找特定代码、函数名、变量名等。返回匹配的文件路径和行号。`
 
 ```python
 import subprocess
