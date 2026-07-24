@@ -45,6 +45,26 @@ result = execute_tool(tc)  # 这是什么？怎么执行的？
 - description: `执行 bash 命令，用于运行程序、系统操作等`
 - 执行函数: `def bash(command: str) -> str: ...`
 
+### description 的重要性
+
+description 不只是说明工具是干什么的，还要说清楚**什么时候用这个工具，什么时候用别的工具**。
+
+**反例：**
+```
+write_file: "写入文件内容"
+edit_file: "编辑文件内容"
+```
+
+LLM 会困惑：修改文件用哪个？
+
+**正例：**
+```
+write_file: "创建新文件或完全重写已有文件。如果只是修改已有文件的一小部分，请用 edit_file。"
+edit_file: "编辑已有文件的一小部分。如果是创建新文件或完全重写，请用 write_file。"
+```
+
+**原则：** 相似工具的 description 要互相引用，说清楚边界。
+
 ### 项目结构
 
 ```
