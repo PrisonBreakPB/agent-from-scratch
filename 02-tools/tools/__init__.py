@@ -18,6 +18,10 @@ tools = [
                     "command": {
                         "type": "string",
                         "description": "要执行的 bash 命令"
+                    },
+                    "timeout": {
+                        "type": "integer",
+                        "description": "超时时间（秒），默认 120"
                     }
                 },
                 "required": ["command"]
@@ -35,6 +39,14 @@ tools = [
                     "path": {
                         "type": "string",
                         "description": "文件路径"
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "起始行号（从1开始），默认1"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "最多读取行数，默认2000"
                     }
                 },
                 "required": ["path"]
@@ -98,6 +110,10 @@ tools = [
                     "pattern": {
                         "type": "string",
                         "description": "文件匹配模式，如 '*.py' 或 '**/*.txt'"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "搜索目录，默认当前目录"
                     }
                 },
                 "required": ["pattern"]
@@ -119,6 +135,10 @@ tools = [
                     "path": {
                         "type": "string",
                         "description": "搜索路径，默认为当前目录"
+                    },
+                    "include": {
+                        "type": "string",
+                        "description": "只搜索匹配的文件，如 '*.py'"
                     }
                 },
                 "required": ["pattern"]
