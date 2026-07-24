@@ -316,6 +316,51 @@ available_functions = {
 }
 ```
 
+### agent.py - 工具参数解析
+
+第一章的代码概览里，工具执行是简写的：
+
+```python
+# 第一章简写
+for tc in msg.tool_calls:
+    result = execute_tool(tc)
+```
+
+这一节我们来实现真正的参数解析：
+
+```python
+for tc in msg.tool_calls:
+    # 1. 获取工具名
+    func_name = tc.function.name
+
+    # 2. 解析参数（JSON 字符串 → 字典）
+    try:
+        args = json.loads(tc.function.arguments)
+    except json.JSONDecodeError:
+        args = {}
+
+    # 3. 查找并执行工具
+    if func_name not in available_functions:
+        result = f"Error: 未知工具 {func_name}"
+    else:
+        try:
+            result = available_functions[func_name](**args)
+        except Exception as e:
+            result = f"Error: {e}"
+
+    # 4. 结果放回消息
+    messages.append({
+        "role": "tool",
+        "tool_call_id": tc.id,
+        "content": str(result)
+    })
+```
+
+**关键点：**
+- `tc.function.arguments` 是 JSON 字符串，如 `'{"command": "ls"}'`
+- `json.loads()` 把它转成字典 `{"command": "ls"}`
+- `**args` 把字典展开为函数参数，等同于 `bash(command="ls")`
+
 ## 下一步
 
 [03-error-handling](../03-error-handling) - 添加错误处理，让 Agent 更健壮。
