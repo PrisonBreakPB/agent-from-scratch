@@ -22,7 +22,7 @@ export OPENAI_API_KEY="your-key"
 
 | 章节 | 内目 | 你将学到 |
 |------|------|----------|
-| [01-minimal-loop](./01-minimal-loop) | 最小 ReAct 循环 | Agent 的核心原理 |
+| [01-minimal-loop](./01-minimal-loop) | 最小 Agent 循环 | Agent 的核心原理 |
 | 02-add-tools | 工具系统 | 如何让 Agent 使用工具 |
 | 03-error-handling | 错误处理 | 让 Agent 更健壮 |
 | 04-cli-interface | CLI 交互 | 做一个真正可用的命令行工具 |
@@ -32,12 +32,10 @@ export OPENAI_API_KEY="your-key"
 
 ## 核心概念
 
-### 什么是 ReAct？
-
-ReAct = **Re**asoning + **Act**ing
+### Agent 的工作方式
 
 ```
-用户问题 → [思考] → [行动] → [观察] → [思考] → [行动] → ... → 最终回答
+用户问题 → [思考] → [调用工具] → [获取结果] → [思考] → [调用工具] → ... → 最终回答
 ```
 
 ### 为什么需要循环？

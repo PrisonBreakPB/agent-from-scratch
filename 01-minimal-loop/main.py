@@ -17,7 +17,7 @@ tools = [{
     }
 }]
 
-def react_loop(user_input: str) -> str:
+def agent_loop(user_input: str) -> str:
     messages = [
         {"role": "system", "content": "你是一个有用的助手，可以使用工具来回答问题。"},
         {"role": "user", "content": user_input}
@@ -50,7 +50,7 @@ def react_loop(user_input: str) -> str:
 
 if __name__ == "__main__":
     print("=== 01-minimal-loop ===")
-    print("这是一个最小的 ReAct 循环，只有一个 get_time 工具")
+    print("这是一个最小的 Agent 循环，只有一个 get_time 工具")
     print("输入 exit 退出\n")
 
     while True:
@@ -59,4 +59,4 @@ if __name__ == "__main__":
             break
         if not user_input:
             continue
-        print(f"\nAI: {react_loop(user_input)}\n")
+        print(f"\nAI: {agent_loop(user_input)}\n")

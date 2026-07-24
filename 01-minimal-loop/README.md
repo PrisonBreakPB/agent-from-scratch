@@ -1,4 +1,4 @@
-# 01 - 最小 ReAct 循环
+# 01 - 最小 Agent 循环
 
 ## 目标
 
@@ -27,7 +27,7 @@ tools = [{
 }]
 
 # 2. 循环
-def react_loop(user_input):
+def agent_loop(user_input):
     messages = [
         {"role": "user", "content": user_input}
     ]

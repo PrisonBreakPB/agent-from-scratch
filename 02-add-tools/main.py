@@ -56,9 +56,9 @@ available_functions = {
     "calculate": calculate
 }
 
-# ========== ReAct 循环 ==========
+# ========== Agent 循环 ==========
 
-def react_loop(user_input: str) -> str:
+def agent_loop(user_input: str) -> str:
     messages = [
         {"role": "system", "content": "你是一个有用的助手，可以使用工具来回答问题。"},
         {"role": "user", "content": user_input}
@@ -122,7 +122,7 @@ if __name__ == "__main__":
                 break
             if not user_input:
                 continue
-            print(f"\nAI: {react_loop(user_input)}\n")
+            print(f"\nAI: {agent_loop(user_input)}\n")
         except KeyboardInterrupt:
             print("\n再见！")
             break
