@@ -116,11 +116,15 @@ def agent_loop(user_input):
 
     while True:
         # 1. 调用 LLM
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            tools=tools
-        )
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+                tools=tools
+            )
+        except Exception as e:
+            return f"API 调用失败: {e}"
+
         msg = response.choices[0].message
         messages.append(msg)
 
