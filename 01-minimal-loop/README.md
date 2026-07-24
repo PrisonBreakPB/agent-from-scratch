@@ -109,7 +109,10 @@ from openai import OpenAI
 client = OpenAI()
 
 def agent_loop(user_input):
-    messages = [{"role": "user", "content": user_input}]
+    messages = [
+        {"role": "system", "content": "你是一个有用的助手，可以使用工具来完成任务。"},
+        {"role": "user", "content": user_input}
+    ]
 
     while True:
         # 1. 调用 LLM
@@ -136,6 +139,50 @@ def agent_loop(user_input):
 ```
 
 **注意：** 这里 `execute_tool()` 是简写，具体实现（工具定义、参数解析等）在下一章介绍。
+
+### 代码解释
+
+这段代码做了 3 件事：
+
+**1. 初始化消息列表**
+
+```python
+messages = [
+    {"role": "system", "content": "你是一个有用的助手，可以使用工具来完成任务。"},
+    {"role": "user", "content": user_input}
+]
+```
+
+- `system`：系统提示词，告诉 LLM 它的角色和能力
+- `user`：用户的输入
+
+**2. 调用 LLM 并判断是否结束**
+
+```python
+response = client.chat.completions.create(...)
+msg = response.choices[0].message
+
+if not msg.tool_calls:
+    return msg.content
+```
+
+每次循环都会调用 LLM，如果它没有请求调用工具，说明已经有了最终答案。
+
+**3. 执行工具并继续循环**
+
+```python
+for tc in msg.tool_calls:
+    result = execute_tool(tc)
+    messages.append({
+        "tool_call_id": tc.id,
+        "role": "tool",
+        "content": result
+    })
+```
+
+执行工具后，把结果放回 `messages`，让 LLM 看到执行结果，然后继续循环。
+
+**这就是整个 Agent 的核心：调用 LLM → 执行工具 → 把结果告诉 LLM → 循环直到完成。**
 
 ## 关键概念
 
