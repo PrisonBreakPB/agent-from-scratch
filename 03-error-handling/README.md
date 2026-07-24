@@ -23,7 +23,7 @@ result = available_functions[func_name](**args)  # 函数执行错误
 ```
 
 真实场景中，错误是常态：
-- 用户输入了不合法的表达式
+- 命令执行失败
 - 网络突然断了
 - API Key 过期了
 - LLM 返回了不存在的工具名
@@ -65,22 +65,23 @@ result = available_functions[func_name](**args)  # 函数执行错误
 
 ```python
 import json
-from datetime import datetime
+import subprocess
 from openai import OpenAI
 
 client = OpenAI()
 MAX_STEPS = 10
 
 # 工具实现
-def get_time() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-def calculate(expression: str) -> str:
+def bash(command: str) -> str:
     try:
-        allowed = set("0123456789+-*/(). ")
-        if not all(c in allowed for c in expression):
-            return "Error: 只允许数字和 +-*/(). 运算符"
-        return str(eval(expression))
+        result = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        return result.stdout + result.stderr
     except Exception as e:
         return f"Error: {e}"
 
@@ -89,31 +90,23 @@ tools = [
     {
         "type": "function",
         "function": {
-            "name": "get_time",
-            "description": "获取当前时间",
-            "parameters": {"type": "object", "properties": {}}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "calculate",
-            "description": "计算数学表达式",
+            "name": "bash",
+            "description": "执行 bash 命令，用于文件操作、运行程序等",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "expression": {
+                    "command": {
                         "type": "string",
-                        "description": "数学表达式，如 2+2*3"
+                        "description": "要执行的 bash 命令"
                     }
                 },
-                "required": ["expression"]
+                "required": ["command"]
             }
         }
     }
 ]
 
-available_functions = {"get_time": get_time, "calculate": calculate}
+available_functions = {"bash": bash}
 
 def agent_loop(user_input: str) -> str:
     messages = [

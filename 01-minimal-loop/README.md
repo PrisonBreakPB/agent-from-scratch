@@ -2,12 +2,12 @@
 
 ## 目标
 
-用最少的代码实现一个能调用工具的 Agent。
+理解 Agent 的核心原理：一个能调用工具的循环。
 
 **完成后你将理解：**
+- 什么是 ReAct 范式
 - Agent 的核心是一个循环
-- LLM 如何决定调用工具
-- 工具结果如何反馈给 LLM
+- 工具调用的基本原理
 
 ## 开始之前
 
@@ -18,6 +18,7 @@
 Agent 不一样，它能**主动做事**。比如：
 - 你说"现在几点了"，它会去调用时间工具获取真实时间
 - 你说"帮我算一下 100 * 2"，它会调用计算器工具得到结果
+- 你说"列出当前目录的文件"，它会调用 bash 工具执行命令
 
 关键区别：**普通大模型只能"说"，Agent 能"做"。**
 
@@ -35,17 +36,13 @@ ReAct 是一种让大模型"做事"的方法论，全称是 **Re**asoning + **Ac
 用一个例子来理解：
 
 ```
-用户：帮我查一下北京现在的时间，然后计算 100 * 2
+用户：帮我看看当前目录有什么文件
 
-[思考] 用户需要两件事：北京时间和计算结果。我先查时间。
-[行动] 调用 get_time 工具
-[观察] 得到 "2026-07-24 15:30:45"
+[思考] 用户想看目录内容，我需要调用 bash 工具执行 ls 命令
+[行动] 调用 bash 工具，参数是 "ls"
+[观察] 得到结果：file1.txt  file2.py  README.md
 
-[思考] 时间拿到了，现在计算 100 * 2
-[行动] 调用 calculate 工具，参数是 "100 * 2"
-[观察] 得到 "200"
-
-[思考] 两个结果都有了，可以组合成回答
+[思考] 结果拿到了，可以告诉用户
 [行动] 不需要工具了，直接回答
 ```
 
@@ -58,12 +55,12 @@ ReAct 是一种让大模型"做事"的方法论，全称是 **Re**asoning + **Ac
 因为**一次调用不够**。考虑这个场景：
 
 ```
-用户：先告诉我现在几点，然后计算 100 * 2
+用户：帮我看看当前目录有什么文件，然后告诉我 file1.txt 的内容
 ```
 
 Agent 需要：
-1. 调用时间工具 → 得到时间
-2. 调用计算工具 → 得到结果
+1. 调用 bash 执行 `ls` → 得到文件列表
+2. 调用 bash 执行 `cat file1.txt` → 得到文件内容
 3. 把两个结果组合成回答
 
 这就是为什么需要循环：**LLM 可能需要多次调用工具才能完成任务。**
@@ -102,149 +99,57 @@ Agent 需要：
 └─────────────┘
 ```
 
-## 核心代码
+## 代码概览
 
-理解了原理，我们来看代码。整个实现只有 30 行：
+整个 Agent 的核心逻辑非常简单，只有 30 行左右：
 
 ```python
-from openai import OpenAI
-
-client = OpenAI()
-
-# 1. 定义工具
-tools = [{
-    "type": "function",
-    "function": {
-        "name": "get_time",
-        "description": "获取当前时间",
-        "parameters": {"type": "object", "properties": {}}
-    }
-}]
-
-# 2. 循环
 def agent_loop(user_input):
-    messages = [
-        {"role": "user", "content": user_input}
-    ]
+    messages = [{"role": "user", "content": user_input}]
 
     while True:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            tools=tools
-        )
+        # 1. 调用 LLM
+        response = call_llm(messages, tools)
+        messages.append(response)
 
-        msg = response.choices[0].message
-        messages.append(msg)
+        # 2. 没有工具调用，结束
+        if not response.tool_calls:
+            return response.content
 
-        # 没有工具调用，结束
-        if not msg.tool_calls:
-            return msg.content
-
-        # 执行工具，结果放回消息
-        for tc in msg.tool_calls:
-            from datetime import datetime
-            result = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            messages.append({
-                "tool_call_id": tc.id,
-                "role": "tool",
-                "content": result
-            })
+        # 3. 执行工具，结果放回消息
+        for tool_call in response.tool_calls:
+            result = execute_tool(tool_call)
+            messages.append(result)
 ```
 
-## 逐行讲解
+**注意：** 这是伪代码，具体实现（工具定义、参数解析等）在下一章介绍。
 
-### 第一部分：工具定义
+## 关键概念
 
-```python
-tools = [{
-    "type": "function",
-    "function": {
-        "name": "get_time",
-        "description": "获取当前时间",
-        "parameters": {"type": "object", "properties": {}}
-    }
-}]
-```
+### 消息列表（messages）
 
-这段代码告诉 LLM："你有一个叫 get_time 的工具可以用"。
+`messages` 是对话历史，每次调用 LLM 都要传进去。
 
-- `name`：工具名称，LLM 会用这个名字来调用
-- `description`：工具描述，LLM 根据这个决定什么时候用
-- `parameters`：参数定义，这个工具不需要参数
+LLM 需要看到完整的历史才能理解上下文，否则会"失忆"。
 
-### 第二部分：消息列表
+### 工具调用（tool_calls）
 
-```python
-messages = [
-    {"role": "user", "content": user_input}
-]
-```
+LLM 返回的响应可能包含 `tool_calls`，表示它想调用某个工具。
 
-`messages` 是对话历史，OpenAI API 需要这个来理解上下文。
+每个 tool_call 包含：
+- 工具名
+- 参数
 
-每次调用 API 都要把完整的历史传进去，否则 LLM 会"失忆"。
+### 工具结果
 
-### 第三部分：调用 LLM
-
-```python
-response = client.chat.completions.create(
-    model="gpt-4o-mini",
-    messages=messages,
-    tools=tools
-)
-
-msg = response.choices[0].message
-messages.append(msg)
-```
-
-- `model`：使用的模型
-- `messages`：对话历史
-- `tools`：可用工具列表
-
-返回的 `msg` 可能包含：
-- `content`：文本回答
-- `tool_calls`：工具调用请求
-
-### 第四部分：判断是否结束
-
-```python
-if not msg.tool_calls:
-    return msg.content
-```
-
-如果 LLM 没有请求调用工具，说明它已经得到答案了，循环结束。
-
-### 第五部分：执行工具
-
-```python
-for tc in msg.tool_calls:
-    result = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    messages.append({
-        "tool_call_id": tc.id,
-        "role": "tool",
-        "content": result
-    })
-```
-
-- `tc.id`：调用 ID，用于匹配结果
-- `role: "tool"`：告诉 LLM 这是工具返回的结果
-- 执行完后继续循环，让 LLM 决定下一步
-
-## 运行效果
-
-```
-你: 现在几点了？
-
-AI: 现在是 2026-07-24 15:30:45。
-```
+执行工具后，要把结果放回 messages，让 LLM 看到执行结果。
 
 ## 思考题
 
-1. 为什么需要 `messages.append(msg)`？
-2. 如果去掉 `if not msg.tool_calls` 会怎样？
-3. `tool_call_id` 的作用是什么？
+1. 为什么需要 `messages.append(response)`？
+2. 如果去掉 `if not response.tool_calls` 会怎样？
+3. 为什么要把工具结果放回 messages？
 
 ## 下一步
 
-[02-add-tools](../02-add-tools) - 学习如何注册多个工具，让 Agent 更强大。
+[02-add-tools](../02-add-tools) - 学习如何定义工具、解析参数，实现一个真正的 Agent。
