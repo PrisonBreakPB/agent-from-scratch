@@ -208,6 +208,40 @@ LLM 返回的响应可能包含 `tool_calls`，表示它想调用某个工具。
 
 执行工具后，要把结果放回 messages，让 LLM 看到执行结果。
 
+## 运行方式
+
+本章提供了一个完整的 CLI 入口文件 `main.py`，你可以直接运行：
+
+```bash
+cd 01-minimal-loop
+python main.py
+```
+
+然后就可以和 Agent 对话了。
+
+### main.py - 入口文件
+
+```python
+from agent import agent_loop
+
+if __name__ == "__main__":
+    print("=== Agent with File Tools ===")
+    print("支持工具：bash, read_file, write_file, edit_file, glob, grep")
+    print("输入 exit 退出\n")
+
+    while True:
+        try:
+            user_input = input("你: ").strip()
+            if user_input.lower() in ["exit", "quit", "q"]:
+                break
+            if not user_input:
+                continue
+            print(f"\nAI: {agent_loop(user_input)}\n")
+        except KeyboardInterrupt:
+            print("\n再见！")
+            break
+```
+
 ## 下一步
 
 [02-tools](../02-tools) - 学习如何定义工具、解析参数，实现一个真正的 Agent。

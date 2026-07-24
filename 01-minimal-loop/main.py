@@ -1,85 +1,16 @@
-# 02 - 工具系统
-
-## 目标
-
-实现一个真正的 Agent，能够操作文件系统。
-
-**完成后你将学到：**
-- 如何定义工具的 Schema
-- 如何把工具名映射到实际函数
-- 如何安全地解析参数
-- 如何实现多个工具
-
-## 开始之前
-
-### 上一节的回顾
-
-上一节我们了解了 Agent 的核心原理：一个能调用工具的循环。
-
-但那只是核心逻辑，这一节我们来实现完整的 Agent，包括工具定义、参数解析等。
-
-### 工具的组成
-
-每个工具由三部分组成：
-
-1. **name**：工具名称，LLM 用这个名字来调用
-2. **description**：工具描述，LLM 根据这个决定什么时候用
-3. **执行函数**：实际执行的 Python 函数
-
-例如 bash 工具：
-- name: `bash`
-- description: `执行 bash 命令，用于运行程序、系统操作等`
-- 执行函数: `def bash(command: str) -> str: ...`
-
-### 项目结构
-
-```
-02-tools/
-├── main.py              # 入口文件
-├── agent.py             # Agent 循环逻辑
-└── tools/
-    ├── __init__.py      # 工具注册
-    ├── bash.py          # bash 工具
-    ├── read_file.py     # 读文件
-    ├── write_file.py    # 写文件
-    ├── edit_file.py     # 编辑文件
-    ├── glob.py          # 查找文件
-    └── grep.py          # 搜索内容
-```
-
-## 核心代码
-
-### tools/bash.py - bash 工具
-
-**name:** `bash`
-**description:** `执行 bash 命令，用于运行程序、系统操作等`
-
-```python
-import re
+import json
+import os
+import glob as glob_module
 import subprocess
+from openai import OpenAI
 
-# 危险命令模式
-DANGEROUS_PATTERNS = [
-    r'\brm\s+(-[a-zA-Z]*r|--recursive)',  # rm -r, rm -rf
-    r'\brmdir\b',                          # rmdir
-    r'\bmkfs\b',                           # mkfs
-    r'\bdd\b.*of=/dev/',                   # dd of=/dev/...
-    r'\bformat\b',                         # format
-    r'>\s*/dev/',                          # 重定向到设备
-    r'\bshutdown\b',                       # shutdown
-    r'\breboot\b',                         # reboot
-    r'\binit\s+0\b',                       # init 0
-    r'\bkill\s+-9\s+1\b',                  # kill -9 1
-    r':\(\)\{.*\|.*&\}',                   # fork bomb
-]
+client = OpenAI()
+MAX_STEPS = 10
+
+# ========== 工具实现 ==========
 
 def bash(command: str) -> str:
-    """执行 bash 命令，会检查危险命令"""
-    # 检查危险命令
-    for pattern in DANGEROUS_PATTERNS:
-        if re.search(pattern, command, re.IGNORECASE):
-            return f"Error: 检测到危险命令，拒绝执行: {command}"
-
+    """执行 bash 命令"""
     try:
         result = subprocess.run(
             command,
@@ -91,14 +22,7 @@ def bash(command: str) -> str:
         return result.stdout + result.stderr
     except Exception as e:
         return f"Error: {e}"
-```
 
-### tools/read_file.py - 读取文件
-
-**name:** `read_file`
-**description:** `读取文件内容`
-
-```python
 def read_file(path: str) -> str:
     """读取文件内容"""
     try:
@@ -106,15 +30,6 @@ def read_file(path: str) -> str:
             return f.read()
     except Exception as e:
         return f"Error: {e}"
-```
-
-### tools/write_file.py - 写入文件
-
-**name:** `write_file`
-**description:** `写入文件内容，会覆盖原有内容`
-
-```python
-import os
 
 def write_file(path: str, content: str) -> str:
     """写入文件内容"""
@@ -125,14 +40,7 @@ def write_file(path: str, content: str) -> str:
         return f"Successfully wrote to {path}"
     except Exception as e:
         return f"Error: {e}"
-```
 
-### tools/edit_file.py - 编辑文件
-
-**name:** `edit_file`
-**description:** `编辑文件，替换指定的文本内容`
-
-```python
 def edit_file(path: str, old_text: str, new_text: str) -> str:
     """编辑文件，替换指定内容"""
     try:
@@ -146,15 +54,6 @@ def edit_file(path: str, old_text: str, new_text: str) -> str:
         return f"Successfully edited {path}"
     except Exception as e:
         return f"Error: {e}"
-```
-
-### tools/glob.py - 查找文件
-
-**name:** `glob`
-**description:** `查找匹配模式的文件，支持通配符`
-
-```python
-import glob as glob_module
 
 def glob(pattern: str) -> str:
     """查找匹配模式的文件"""
@@ -165,15 +64,6 @@ def glob(pattern: str) -> str:
         return "\n".join(files)
     except Exception as e:
         return f"Error: {e}"
-```
-
-### tools/grep.py - 搜索内容
-
-**name:** `grep`
-**description:** `在文件中搜索内容`
-
-```python
-import subprocess
 
 def grep(pattern: str, path: str = ".") -> str:
     """在文件中搜索内容"""
@@ -187,19 +77,9 @@ def grep(pattern: str, path: str = ".") -> str:
         return result.stdout or "No matches found"
     except Exception as e:
         return f"Error: {e}"
-```
 
-### tools/__init__.py - 工具注册
+# ========== 工具注册 ==========
 
-```python
-from .bash import bash
-from .read_file import read_file
-from .write_file import write_file
-from .edit_file import edit_file
-from .glob import glob
-from .grep import grep
-
-# 工具 Schema
 tools = [
     {
         "type": "function",
@@ -291,7 +171,6 @@ tools = [
     }
 ]
 
-# 函数映射
 available_functions = {
     "bash": bash,
     "read_file": read_file,
@@ -300,18 +179,8 @@ available_functions = {
     "glob": glob,
     "grep": grep
 }
-```
 
-### agent.py - Agent 循环
-
-```python
-import json
-from openai import OpenAI
-
-from tools import tools, available_functions
-
-client = OpenAI()
-MAX_STEPS = 10
+# ========== Agent 循环 ==========
 
 def agent_loop(user_input: str) -> str:
     messages = [
@@ -358,8 +227,22 @@ def agent_loop(user_input: str) -> str:
             })
 
     return "达到最大步数限制"
-```
 
-## 下一步
+# ========== CLI 入口 ==========
 
-[03-error-handling](../03-error-handling) - 添加错误处理，让 Agent 更健壮。
+if __name__ == "__main__":
+    print("=== Agent with File Tools ===")
+    print("支持工具：bash, read_file, write_file, edit_file, glob, grep")
+    print("输入 exit 退出\n")
+
+    while True:
+        try:
+            user_input = input("你: ").strip()
+            if user_input.lower() in ["exit", "quit", "q"]:
+                break
+            if not user_input:
+                continue
+            print(f"\nAI: {agent_loop(user_input)}\n")
+        except KeyboardInterrupt:
+            print("\n再见！")
+            break
