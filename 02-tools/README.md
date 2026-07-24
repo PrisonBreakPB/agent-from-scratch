@@ -429,4 +429,4 @@ results = await asyncio.gather(*[execute(tc) for tc in msg.tool_calls])
 
 ## 下一步
 
-[03-error-handling](../03-error-handling) - 添加错误处理，让 Agent 更健壮。
+[03-cli](../03-cli) - 做一个真正可用的命令行工具。

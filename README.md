@@ -24,9 +24,9 @@ export OPENAI_API_KEY="your-key"
 |------|------|----------|
 | [01-minimal-loop](./01-minimal-loop) | 最小 Agent 循环 | Agent 的核心原理 |
 | [02-tools](./02-tools) | 工具系统 | 如何让 Agent 使用工具 |
-| [03-error-handling](./03-error-handling) | 错误处理 | 让 Agent 更健壮 |
-| 04-cli-interface | CLI 交互 | 做一个真正可用的命令行工具 |
-| 05-streaming | 流式输出 | 提升用户体验 |
+| [03-cli](./03-cli) | CLI 界面 | 做一个真正可用的命令行工具 |
+| 04-streaming | 流式输出 | 提升用户体验 |
+| 05-error-handling | 错误处理 | 让 Agent 更健壮 |
 | 06-memory | 上下文记忆 | 让 Agent 记住对话 |
 | 07-multi-tool | 多工具协作 | 复杂任务分解 |
 
