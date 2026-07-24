@@ -381,6 +381,52 @@ for tc in msg.tool_calls:
 - `json.loads()` 把它转成字典 `{"command": "ls"}`
 - `**args` 把字典展开为函数参数，等同于 `bash(command="ls")`
 
+## 预留接口
+
+本章实现了基础的工具系统，但还有两个问题需要解决，将在后续章节介绍：
+
+### 1. 延迟选择工具
+
+**问题：** 工具越来越多时，把所有工具的完整 Schema 都传给 LLM 会浪费 token。
+
+**方案：** 只传工具的 name 和 description，LLM 需要时再调用一个专门的工具查询详细信息。
+
+```
+初始状态（只传摘要）：
+tools = [
+    {"name": "bash", "description": "执行 bash 命令"},
+    {"name": "read_file", "description": "读取文件"},
+    {"name": "write_file", "description": "写入文件"},
+    ...
+]
+
+LLM: 我想用 bash工具，先查一下具体参数
+→ 调用 get_tool_info("bash")
+→ 返回完整 Schema
+LLM: 好了，现在调用 bash(command="ls")
+```
+
+### 2. 多工具并行执行
+
+**问题：** LLM 一次可能返回多个 tool_calls，如何高效执行？
+
+**方案：** 区分并行和串行。
+
+```python
+# 串行：按顺序执行（当前实现）
+for tc in msg.tool_calls:
+    result = execute(tc)
+    ...
+
+# 并行：同时执行（适合无依赖的工具）
+import asyncio
+results = await asyncio.gather(*[execute(tc) for tc in msg.tool_calls])
+```
+
+**什么时候并行？**
+- 读取多个文件 → 并行
+- 读取文件后再编辑 → 串行
+
 ## 下一步
 
 [03-error-handling](../03-error-handling) - 添加错误处理，让 Agent 更健壮。
