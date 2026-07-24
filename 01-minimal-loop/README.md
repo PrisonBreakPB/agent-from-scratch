@@ -104,25 +104,38 @@ Agent 需要：
 整个 Agent 的核心逻辑非常简单，只有 30 行左右：
 
 ```python
+from openai import OpenAI
+
+client = OpenAI()
+
 def agent_loop(user_input):
     messages = [{"role": "user", "content": user_input}]
 
     while True:
         # 1. 调用 LLM
-        response = call_llm(messages, tools)
-        messages.append(response)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            tools=tools
+        )
+        msg = response.choices[0].message
+        messages.append(msg)
 
         # 2. 没有工具调用，结束
-        if not response.tool_calls:
-            return response.content
+        if not msg.tool_calls:
+            return msg.content
 
         # 3. 执行工具，结果放回消息
-        for tool_call in response.tool_calls:
-            result = execute_tool(tool_call)
-            messages.append(result)
+        for tc in msg.tool_calls:
+            result = execute_tool(tc)
+            messages.append({
+                "tool_call_id": tc.id,
+                "role": "tool",
+                "content": result
+            })
 ```
 
-**注意：** 这是伪代码，具体实现（工具定义、参数解析等）在下一章介绍。
+**注意：** 这里 `execute_tool()` 是简写，具体实现（工具定义、参数解析等）在下一章介绍。
 
 ## 关键概念
 
