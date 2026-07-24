@@ -21,7 +21,7 @@
 ### 项目结构
 
 ```
-02-add-tools/
+02-tools/
 ├── main.py              # 入口文件
 ├── agent.py             # Agent 循环逻辑
 └── tools/
