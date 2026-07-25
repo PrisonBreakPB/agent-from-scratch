@@ -5,7 +5,6 @@ from config import Config
 def main():
     parser = argparse.ArgumentParser(description="AI Agent CLI")
     parser.add_argument("-m", "--model", help="Model name")
-    parser.add_argument("-p", "--prompt", help="One-shot prompt (non-interactive)")
     parser.add_argument("-r", "--resume", metavar="ID", help="Resume a saved session")
     args = parser.parse_args()
 
@@ -30,11 +29,6 @@ def main():
         else:
             print(f"Session '{args.resume}' not found.")
             return
-
-    # one-shot 模式
-    if args.prompt:
-        print(agent.chat(args.prompt))
-        return
 
     # 交互模式
     from cli import create_repl
