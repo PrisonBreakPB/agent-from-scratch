@@ -65,26 +65,6 @@ CLI 不是"简陋"，而是"高效"。
 
 ## 核心代码
 
-### config.py - 配置管理
-
-```python
-@dataclass
-class Config:
-    model: str = "gpt-4o-mini"
-    api_key: str = ""
-    base_url: str | None = None
-
-    @classmethod
-    def from_env(cls) -> "Config":
-        return cls(
-            model=os.getenv("MODEL", "gpt-4o-mini"),
-            api_key=os.getenv("OPENAI_API_KEY", ""),
-            base_url=os.getenv("OPENAI_BASE_URL"),
-        )
-```
-
-**作用：** 从环境变量读取配置，集中管理。
-
 ### session.py - 会话管理
 
 ```python
