@@ -448,4 +448,4 @@ results = await asyncio.gather(*[execute(tc) for tc in msg.tool_calls])
 
 ## 下一步
 
-[03-cli](../03-cli) - 做一个真正可用的命令行工具。
+[03-cli](03-cli.md) - 做一个真正可用的命令行工具。
