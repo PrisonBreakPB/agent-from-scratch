@@ -28,6 +28,44 @@ LLM 有 token 限制，比如 128K tokens。当对话变长时：
 - 对话历史会不断累积
 - 超出限制后 API 会报错
 
+### 如何计算上下文使用量？
+
+要决定何时压缩，首先要知道当前用了多少 token。
+
+**方法一：精确计算（调用 API）**
+
+OpenAI 提供了 `tiktoken` 库，可以精确计算 token 数：
+
+```python
+import tiktoken
+
+encoder = tiktoken.encoding_for_model("gpt-4o-mini")
+
+def count_tokens(text):
+    return len(encoder.encode(text))
+```
+
+**方法二：估算（不依赖 API）**
+
+粗略估算：1 个 token ≈ 3-4 个字符（中英文混合）
+
+```python
+def estimate_tokens(text):
+    return len(text) // 3
+```
+
+**对比：**
+
+| 方法 | 精度 | 速度 | 依赖 |
+|------|------|------|------|
+| tiktoken | 精确 | 慢 | 需要安装 |
+| 字符估算 | 粗略 | 快 | 无 |
+
+**我们的选择：** 用字符估算，因为：
+- 不需要额外依赖
+- 速度快
+- 精度够用（决定何时压缩，不需要精确到个位）
+
 ### 压缩策略
 
 参考 Claude Code 和 CoreCoder，采用三层压缩：
