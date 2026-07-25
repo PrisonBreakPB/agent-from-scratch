@@ -13,7 +13,7 @@ class AgentLoop:
             {"role": "system", "content": "你是一个有用的助手，可以使用工具来操作文件系统。"}
         ]
         self.max_steps = 10
-        self.context = ContextManager(max_tokens=128000)
+        self.context = ContextManager(max_tokens=config.max_context_tokens)
 
     def reset(self):
         """重置对话"""

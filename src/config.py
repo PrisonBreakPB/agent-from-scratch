@@ -24,6 +24,7 @@ class Config:
         self.model = os.getenv("MODEL", "mimo-v2.5-pro")
         self.api_key = os.getenv("OPENAI_API_KEY", "")
         self.base_url = os.getenv("OPENAI_BASE_URL", "https://token-plan-cn.xiaomimimo.com/v1")
+        self.max_context_tokens = int(os.getenv("MAX_CONTEXT_TOKENS", "128000"))
 
     @classmethod
     def from_env(cls) -> "Config":
