@@ -2,6 +2,7 @@ import json
 from openai import OpenAI
 
 from tools import tools, available_functions
+from context import ContextManager
 
 
 class AgentLoop:
@@ -12,6 +13,7 @@ class AgentLoop:
             {"role": "system", "content": "你是一个有用的助手，可以使用工具来操作文件系统。"}
         ]
         self.max_steps = 10
+        self.context = ContextManager(max_tokens=128000)
 
     def reset(self):
         """重置对话"""
@@ -27,6 +29,9 @@ class AgentLoop:
             on_token: 流式输出回调函数，接收一个 token 字符串
         """
         self.messages.append({"role": "user", "content": user_input})
+
+        # 检查是否需要压缩上下文
+        self.context.maybe_compress(self.messages, self.client)
 
         for step in range(self.max_steps):
             try:
