@@ -21,36 +21,36 @@ def estimate_tokens(messages):
 class ContextManager:
     def __init__(self, max_tokens=128000):
         self.max_tokens = max_tokens
-        self._snip_at = int(max_tokens * 0.50)  # 50% 截断工具输出
-        self._summarize_at = int(max_tokens * 0.70)  # 70% LLM 总结
-        self._collapse_at = int(max_tokens * 0.90)  # 90% 硬压缩
+        self._truncate_at = int(max_tokens * 0.50)  # 50% 截断工具输出
+        self._summary_at = int(max_tokens * 0.70)  # 70% LLM 总结
+        self._reset_at = int(max_tokens * 0.90)  # 90% 硬压缩
 
-    def maybe_compress(self, messages, llm_client=None):
+    def check_and_compress(self, messages, llm_client=None):
         """检查是否需要压缩，执行压缩"""
         current = estimate_tokens(messages)
         compressed = False
 
         # Layer 1: 截断工具输出
-        if current > self._snip_at:
-            if self._snip_tool_outputs(messages):
+        if current > self._truncate_at:
+            if self.truncate_tool_results(messages):
                 compressed = True
                 current = estimate_tokens(messages)
 
         # Layer 2: LLM 总结
-        if current > self._summarize_at and len(messages) > 10:
-            if self._summarize_old(messages, llm_client):
+        if current > self._summary_at and len(messages) > 10:
+            if self.summarize_history(messages, llm_client):
                 compressed = True
                 current = estimate_tokens(messages)
 
         # Layer 3: 硬压缩
-        if current > self._collapse_at and len(messages) > 4:
-            self._hard_collapse(messages, llm_client)
+        if current > self._reset_at and len(messages) > 4:
+            self.emergency_compress(messages, llm_client)
             compressed = True
 
         return compressed
 
     @staticmethod
-    def _snip_tool_outputs(messages):
+    def truncate_tool_results(messages):
         """Layer 1: 截断冗长的工具输出"""
         changed = False
         for m in messages:
@@ -63,16 +63,16 @@ class ContextManager:
             if len(lines) <= 6:
                 continue
             # 保留前3行和后3行
-            snipped = (
+            truncated = (
                 "\n".join(lines[:3])
-                + f"\n... ({len(lines)} lines, snipped to save context) ...\n"
+                + f"\n... ({len(lines)} lines, truncated) ...\n"
                 + "\n".join(lines[-3:])
             )
-            m["content"] = snipped
+            m["content"] = truncated
             changed = True
         return changed
 
-    def _summarize_old(self, messages, llm_client, keep_recent=8):
+    def summarize_history(self, messages, llm_client, keep_recent=8):
         """Layer 2: LLM 总结旧对话"""
         if len(messages) <= keep_recent:
             return False
@@ -85,7 +85,7 @@ class ContextManager:
         old = messages[:split]
         tail = messages[split:]
 
-        summary = self._get_summary(old, llm_client)
+        summary = self._generate_summary(old, llm_client)
 
         messages.clear()
         messages.append({
@@ -99,14 +99,14 @@ class ContextManager:
         messages.extend(tail)
         return True
 
-    def _hard_collapse(self, messages, llm_client):
+    def emergency_compress(self, messages, llm_client):
         """Layer 3: 硬压缩，只保留摘要和最近4条消息"""
         split = max(0, len(messages) - 4)
         while split > 0 and messages[split].get("role") == "tool":
             split -= 1
 
         tail = messages[split:]
-        summary = self._get_summary(messages[:split], llm_client)
+        summary = self._generate_summary(messages[:split], llm_client)
 
         messages.clear()
         messages.append({
@@ -119,11 +119,11 @@ class ContextManager:
         })
         messages.extend(tail)
 
-    def _get_summary(self, messages, llm_client):
+    def _generate_summary(self, messages, llm_client):
         """生成摘要"""
         if llm_client:
             try:
-                flat = self._flatten(messages)
+                flat = self._flatten_messages(messages)
                 response = llm_client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[
@@ -148,7 +148,7 @@ class ContextManager:
         return self._extract_key_info(messages)
 
     @staticmethod
-    def _flatten(messages):
+    def _flatten_messages(messages):
         """把消息列表转成文本"""
         parts = []
         for m in messages:

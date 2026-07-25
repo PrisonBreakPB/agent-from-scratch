@@ -31,7 +31,7 @@ class AgentLoop:
         self.messages.append({"role": "user", "content": user_input})
 
         # 检查是否需要压缩上下文
-        self.context.maybe_compress(self.messages, self.client)
+        self.context.check_and_compress(self.messages, self.client)
 
         for step in range(self.max_steps):
             try:
