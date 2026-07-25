@@ -25,6 +25,7 @@ def main():
             agent.messages, saved_model = loaded
             if not args.model:
                 config.model = saved_model
+                agent.model = saved_model
             print(f"Resumed session: {args.resume}")
         else:
             print(f"Session '{args.resume}' not found.")

@@ -34,7 +34,21 @@ class AgentLoop:
                 return f"API 调用失败: {e}"
 
             msg = response.choices[0].message
-            self.messages.append(msg)
+            # 转成 dict 再存入 messages，否则 json.dumps 会失败
+            msg_dict = {"role": "assistant", "content": msg.content}
+            if msg.tool_calls:
+                msg_dict["tool_calls"] = [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments
+                        }
+                    }
+                    for tc in msg.tool_calls
+                ]
+            self.messages.append(msg_dict)
 
             if not msg.tool_calls:
                 return msg.content or "无响应内容"
