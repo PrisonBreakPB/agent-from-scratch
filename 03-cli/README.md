@@ -145,7 +145,9 @@ def create_repl(agent, config):
     ))
 
     # 历史记录
-    history = FileHistory("~/.agent_history")
+    history_path = Path.home() / ".agent_history"
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    history = FileHistory(str(history_path))
 
     while True:
         try:
