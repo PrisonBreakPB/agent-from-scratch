@@ -11,12 +11,18 @@ console = Console()
 
 def create_repl(agent, config):
     """创建 REPL 循环"""
-    console.print(Panel(
-        f"[bold]Agent[/bold]\n"
-        f"Model: [cyan]{config.model}[/cyan]\n"
-        "Type [bold]/help[/bold] for commands, [bold]quit[/bold] to exit.",
-        border_style="blue",
-    ))
+    # ASCII Art 欢迎信息
+    console.print()
+    console.print("[bold blue]   _                 _           [/bold blue]")
+    console.print("[bold blue]  /_\\  _ __   __ _  | |_ ___  _ __  [/bold blue]")
+    console.print("[bold cyan] //_\\\\| '_ \\ / _` | | __/ _ \\| '__| [/bold cyan]")
+    console.print("[bold green]/  _  \\ |_) | (_| | | || (_) | |    [/bold green]")
+    console.print("[bold yellow]\\_/ \\_/ .__/ \\__,_|  \\__\\___/|_|    [/bold yellow]")
+    console.print("[bold yellow]      |_|                            [/bold yellow]")
+    console.print()
+    console.print(f"[bold]Model:[/bold] [cyan]{config.model}[/cyan]")
+    console.print("[bold]Type[/bold] [cyan]/help[/cyan] [bold]for commands,[/bold] [cyan]quit[/cyan] [bold]to exit.[/bold]")
+    console.print()
 
     # 历史记录
     history_path = Path.home() / ".agent_history"
