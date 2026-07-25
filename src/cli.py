@@ -63,6 +63,13 @@ def create_repl(agent, config):
                 for s in sessions:
                     console.print(f"  [cyan]{s['id']}[/cyan] ({s['model']}, {s['saved_at']})")
             continue
+        if user_input == "/compact":
+            from context import estimate_tokens
+            before = estimate_tokens(agent.messages)
+            agent.context.check_and_compress(agent.messages, agent.client)
+            after = estimate_tokens(agent.messages)
+            console.print(f"[green]Compressed: {before} → {after} tokens[/green]")
+            continue
 
         # 未知命令
         if user_input.startswith("/"):
@@ -97,6 +104,7 @@ def _show_help():
         "[bold]Commands:[/bold]\n"
         "  /help      Show this help\n"
         "  /reset     Clear conversation history\n"
+        "  /compact   Compress conversation context\n"
         "  /save      Save current session\n"
         "  /sessions  List saved sessions\n"
         "  quit       Exit",

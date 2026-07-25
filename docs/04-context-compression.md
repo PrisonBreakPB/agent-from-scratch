@@ -183,6 +183,32 @@ class AgentLoop:
 
 **关键：** 在每轮对话后自动检查并压缩。
 
+### 手动压缩：/compact 命令
+
+除了自动压缩，还可以手动触发：
+
+```python
+# cli.py
+if user_input == "/compact":
+    from context import estimate_tokens
+    before = estimate_tokens(agent.messages)
+    agent.context.check_and_compress(agent.messages, agent.client)
+    after = estimate_tokens(agent.messages)
+    console.print(f"[green]Compressed: {before} → {after} tokens[/green]")
+    continue
+```
+
+**使用场景：**
+- 对话变长，想主动压缩
+- 测试压缩效果
+- 准备开始新话题前清理上下文
+
+**运行效果：**
+```
+You > /compact
+Compressed: 50000 → 15000 tokens
+```
+
 ## 运行效果
 
 ```
