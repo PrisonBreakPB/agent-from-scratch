@@ -68,9 +68,6 @@ CLI 不是"简陋"，而是"高效"。
 ### config.py - 配置管理
 
 ```python
-import os
-from dataclasses import dataclass
-
 @dataclass
 class Config:
     model: str = "gpt-4o-mini"
@@ -91,10 +88,6 @@ class Config:
 ### session.py - 会话管理
 
 ```python
-import json
-import time
-from pathlib import Path
-
 SESSIONS_DIR = Path.home() / ".agent" / "sessions"
 
 def save_session(messages: list[dict], model: str) -> str:
@@ -139,12 +132,6 @@ def list_sessions() -> list[dict]:
 ### cli.py - REPL 界面
 
 ```python
-from rich.console import Console
-from rich.markdown import Markdown
-from rich.panel import Panel
-from prompt_toolkit import prompt
-from prompt_toolkit.history import FileHistory
-
 console = Console()
 
 def create_repl(agent, config):
@@ -211,10 +198,6 @@ def _show_help():
 ### main.py - 入口
 
 ```python
-import argparse
-from config import Config
-from cli import create_repl
-
 def main():
     parser = argparse.ArgumentParser(description="AI Agent CLI")
     parser.add_argument("-m", "--model", help="Model name")

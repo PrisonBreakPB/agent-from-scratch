@@ -104,8 +104,6 @@ Agent 需要：
 整个 Agent 的核心逻辑非常简单，只有 30 行左右：
 
 ```python
-from openai import OpenAI
-
 client = OpenAI()
 
 def agent_loop(user_input):
@@ -222,8 +220,6 @@ python main.py
 ### main.py - 入口文件
 
 ```python
-from agent import agent_loop
-
 if __name__ == "__main__":
     print("=== Agent with File Tools ===")
     print("支持工具：bash, read_file, write_file, edit_file, glob, grep")

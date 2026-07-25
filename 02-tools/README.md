@@ -89,9 +89,6 @@ edit_file: "编辑已有文件的一小部分。如果是创建新文件或完�
 **description:** `执行 bash 命令，用于运行程序、系统操作等。适合执行 shell 命令、git 操作、运行脚本等。`
 
 ```python
-import re
-import subprocess
-
 # 危险命令模式
 DANGEROUS_PATTERNS = [
     r'\brm\s+(-[a-zA-Z]*r|--recursive)',  # rm -r, rm -rf
@@ -148,15 +145,14 @@ def read_file(path: str) -> str:
 **description:** `创建新文件或完全重写已有文件。适合创建新文件、写入完整内容。如果只是修改已有文件的一小部分，请用 edit_file。`
 
 ```python
-import os
-
 def write_file(path: str, content: str) -> str:
     """写入文件内容"""
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        return f"Successfully wrote to {path}"
+        p = Path(path).expanduser().resolve()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
+        n_lines = content.count("\n") + (1 if content and not content.endswith("\n") else 0)
+        return f"Wrote {n_lines} lines to {path}"
     except Exception as e:
         return f"Error: {e}"
 ```
@@ -188,15 +184,25 @@ def edit_file(path: str, old_text: str, new_text: str) -> str:
 **description:** `查找匹配模式的文件，支持通配符。适合查找特定类型的文件（如所有 .py 文件）。`
 
 ```python
-import glob as glob_module
-
-def glob(pattern: str) -> str:
+def glob(pattern: str, path: str = ".") -> str:
     """查找匹配模式的文件"""
     try:
-        files = glob_module.glob(pattern, recursive=True)
-        if not files:
-            return "No files found"
-        return "\n".join(files)
+        base = Path(path).expanduser().resolve()
+        if not base.is_dir():
+            return f"Error: {path} is not a directory"
+
+        hits = list(base.glob(pattern))
+        # 按修改时间排序，最新在前
+        hits.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
+
+        total = len(hits)
+        shown = hits[:100]
+        lines = [str(h) for h in shown]
+        result = "\n".join(lines)
+
+        if total > 100:
+            result += f"\n... ({total} matches, showing first 100)"
+        return result or "No files matched."
     except Exception as e:
         return f"Error: {e}"
 ```
@@ -207,32 +213,46 @@ def glob(pattern: str) -> str:
 **description:** `在文件中搜索内容。适合查找特定代码、函数名、变量名等。返回匹配的文件路径和行号。`
 
 ```python
-import subprocess
-
-def grep(pattern: str, path: str = ".") -> str:
+def grep(pattern: str, path: str = ".", include: str | None = None) -> str:
     """在文件中搜索内容"""
     try:
-        result = subprocess.run(
-            ["grep", "-r", "-n", pattern, path],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        return result.stdout or "No matches found"
-    except Exception as e:
-        return f"Error: {e}"
+        regex = re.compile(pattern)
+    except re.error as e:
+        return f"Invalid regex: {e}"
+
+    base = Path(path).expanduser().resolve()
+    if not base.exists():
+        return f"Error: {path} not found"
+
+    if base.is_file():
+        files = [base]
+    else:
+        files = _walk(base, include)
+
+    matches = []
+    for fp in files:
+        try:
+            text = fp.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if regex.search(line):
+                matches.append(f"{fp}:{lineno}: {line.rstrip()}")
+                if len(matches) >= 200:
+                    matches.append("... (200 match limit reached)")
+                    return "\n".join(matches)
+
+    return "\n".join(matches) if matches else "No matches found."
 ```
 
 ### tools/__init__.py - 工具注册
 
-```python
-from .bash import bash
-from .read_file import read_file
-from .write_file import write_file
-from .edit_file import edit_file
-from .glob import glob
-from .grep import grep
+__init__.py 负责：
+1. 导入各个工具函数
+2. 定义 tools Schema 列表
+3. 定义 available_functions 映射
 
+```python
 # 工具 Schema
 tools = [
     {
@@ -419,7 +439,6 @@ for tc in msg.tool_calls:
     ...
 
 # 并行：同时执行（适合无依赖的工具）
-import asyncio
 results = await asyncio.gather(*[execute(tc) for tc in msg.tool_calls])
 ```
 
