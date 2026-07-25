@@ -210,36 +210,12 @@ def _show_help():
 
 ### main.py - 入口
 
-```python
-import argparse
-from config import Config
-from cli import create_repl
+main.py 负责：
+1. 解析命令行参数（-m 模型、-p 单次执行）
+2. 从环境变量读取配置
+3. 创建 Agent 并启动 REPL
 
-def main():
-    parser = argparse.ArgumentParser(description="AI Agent CLI")
-    parser.add_argument("-m", "--model", help="Model name")
-    parser.add_argument("-p", "--prompt", help="One-shot prompt")
-    args = parser.parse_args()
-
-    config = Config.from_env()
-    if args.model:
-        config.model = args.model
-
-    # 创建 Agent
-    from agent import AgentLoop
-    agent = AgentLoop(config)
-
-    # one-shot 模式
-    if args.prompt:
-        print(agent.chat(args.prompt))
-        return
-
-    # 交互模式
-    create_repl(agent, config)
-
-if __name__ == "__main__":
-    main()
-```
+详见 `03-cli/main.py`。
 
 ## 依赖安装
 
