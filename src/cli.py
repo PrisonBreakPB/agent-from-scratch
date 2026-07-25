@@ -69,10 +69,22 @@ def create_repl(agent, config):
             console.print(f"[yellow]Unknown command: {user_input.split()[0]} (try /help)[/yellow]")
             continue
 
-        # 调用 Agent
+        # 调用 Agent（流式输出）
         try:
-            response = agent.chat(user_input)
-            console.print(Markdown(response))
+            streamed = []
+
+            def on_token(token):
+                streamed.append(token)
+                print(token, end="", flush=True)
+
+            response = agent.chat(user_input, on_token=on_token)
+
+            # 如果有流式输出，打印换行
+            if streamed:
+                print()
+            else:
+                # 没有流式输出（工具调用后返回），用 Markdown 渲染
+                console.print(Markdown(response))
         except KeyboardInterrupt:
             console.print("\n[yellow]Interrupted.[/yellow]")
         except Exception as e:
@@ -80,6 +92,7 @@ def create_repl(agent, config):
 
 
 def _show_help():
+    """显示帮助信息"""
     console.print(Panel(
         "[bold]Commands:[/bold]\n"
         "  /help      Show this help\n"

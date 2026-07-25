@@ -267,6 +267,91 @@ You > /help
 You > bye!
 ```
 
+## 流式输出
+
+### 为什么需要流式输出？
+
+普通输出是一次性显示全部内容：
+
+```
+You > hello
+Hello! I am a helpful assistant that can use tools...（等待3秒后一次性显示）
+```
+
+流式输出是逐字显示：
+
+```
+You > hello
+Hello! I am a helpful assistant...（逐字显示，无需等待）
+```
+
+**好处：**
+- 用户体验更好，不用等待
+- 可以提前看到响应内容
+- 感觉更快（实际速度一样）
+
+### 实现原理
+
+OpenAI API 支持流式输出，设置 `stream=True` 即可：
+
+```python
+stream = client.chat.completions.create(
+    model="mimo-v2.5-pro",
+    messages=messages,
+    stream=True  # 启用流式输出
+)
+
+for chunk in stream:
+    token = chunk.choices[0].delta.content
+    print(token, end="", flush=True)
+```
+
+### 我们的实现
+
+**agent.py - 添加 on_token 回调：**
+
+```python
+def chat(self, user_input: str, on_token=None) -> str:
+    stream = self.client.chat.completions.create(
+        model=self.model,
+        messages=self.messages,
+        tools=tools,
+        stream=True
+    )
+
+    collected_tokens = []
+    for chunk in stream:
+        if chunk.choices[0].delta.content:
+            token = chunk.choices[0].delta.content
+            collected_tokens.append(token)
+            if on_token:
+                on_token(token)  # 调用回调函数
+
+    return "".join(collected_tokens)
+```
+
+**cli.py - 定义回调函数：**
+
+```python
+streamed = []
+
+def on_token(token):
+    streamed.append(token)
+    print(token, end="", flush=True)  # 逐字打印
+
+response = agent.chat(user_input, on_token=on_token)
+
+if streamed:
+    print()  # 打印换行
+```
+
+### 关键点
+
+1. **stream=True**：告诉 API 返回流式响应
+2. **chunk**：每次返回一小部分内容
+3. **on_token 回调**：每收到一个 token 就调用一次
+4. **flush=True**：立即输出，不缓冲
+
 ## 下一步
 
 敬请期待...

@@ -19,45 +19,76 @@ class AgentLoop:
             {"role": "system", "content": "你是一个有用的助手，可以使用工具来操作文件系统。"}
         ]
 
-    def chat(self, user_input: str) -> str:
-        """发送消息并获取回复"""
+    def chat(self, user_input: str, on_token=None) -> str:
+        """发送消息并获取回复
+
+        Args:
+            user_input: 用户输入
+            on_token: 流式输出回调函数，接收一个 token 字符串
+        """
         self.messages.append({"role": "user", "content": user_input})
 
         for step in range(self.max_steps):
             try:
-                response = self.client.chat.completions.create(
+                # 使用流式输出
+                stream = self.client.chat.completions.create(
                     model=self.model,
                     messages=self.messages,
-                    tools=tools
+                    tools=tools,
+                    stream=True  # 启用流式输出
                 )
             except Exception as e:
                 return f"API 调用失败: {e}"
 
-            msg = response.choices[0].message
-            # 转成 dict 再存入 messages，否则 json.dumps 会失败
-            msg_dict = {"role": "assistant", "content": msg.content}
-            if msg.tool_calls:
-                msg_dict["tool_calls"] = [
-                    {
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments
-                        }
-                    }
-                    for tc in msg.tool_calls
-                ]
+            # 收集完整响应
+            collected_tokens = []
+            tool_calls = []
+            final_content = ""
+
+            for chunk in stream:
+                # 处理文本内容
+                if chunk.choices[0].delta.content:
+                    token = chunk.choices[0].delta.content
+                    collected_tokens.append(token)
+                    if on_token:
+                        on_token(token)  # 调用回调函数
+
+                # 处理工具调用
+                if chunk.choices[0].delta.tool_calls:
+                    for tc in chunk.choices[0].delta.tool_calls:
+                        # 累积工具调用信息
+                        while len(tool_calls) <= tc.index:
+                            tool_calls.append({
+                                "id": "",
+                                "function": {"name": "", "arguments": ""}
+                            })
+                        if tc.id:
+                            tool_calls[tc.index]["id"] = tc.id
+                        if tc.function:
+                            if tc.function.name:
+                                tool_calls[tc.index]["function"]["name"] = tc.function.name
+                            if tc.function.arguments:
+                                tool_calls[tc.index]["function"]["arguments"] += tc.function.arguments
+
+            # 组装完整内容
+            final_content = "".join(collected_tokens)
+
+            # 保存助手消息
+            msg_dict = {"role": "assistant", "content": final_content}
+            if tool_calls:
+                msg_dict["tool_calls"] = tool_calls
             self.messages.append(msg_dict)
 
-            if not msg.tool_calls:
-                return msg.content or "无响应内容"
+            # 如果没有工具调用，返回结果
+            if not tool_calls:
+                return final_content or "无响应内容"
 
-            for tc in msg.tool_calls:
-                func_name = tc.function.name
+            # 执行工具
+            for tc in tool_calls:
+                func_name = tc["function"]["name"]
 
                 try:
-                    args = json.loads(tc.function.arguments)
+                    args = json.loads(tc["function"]["arguments"])
                 except json.JSONDecodeError:
                     args = {}
 
@@ -71,7 +102,7 @@ class AgentLoop:
 
                 self.messages.append({
                     "role": "tool",
-                    "tool_call_id": tc.id,
+                    "tool_call_id": tc["id"],
                     "content": str(result)
                 })
 
