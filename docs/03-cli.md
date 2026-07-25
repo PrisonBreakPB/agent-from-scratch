@@ -239,7 +239,7 @@ pip install rich prompt_toolkit
 python main.py
 
 # 指定模型
-python main.py -m gpt-4o
+python main.py -m gpt-4o-mini
 
 # 单次执行
 python main.py -p "列出当前目录的文件"
@@ -296,7 +296,7 @@ OpenAI API 支持流式输出，设置 `stream=True` 即可：
 
 ```python
 stream = client.chat.completions.create(
-    model="mimo-v2.5-pro",
+    model="gpt-4o-mini",
     messages=messages,
     stream=True  # 启用流式输出
 )
