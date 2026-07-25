@@ -221,13 +221,26 @@ python main.py
 
 ### main.py - 入口文件
 
-第一章的 main.py 是一个独立文件，包含所有代码，可以直接运行：
+```python
+from agent import agent_loop
 
-```bash
-python main.py
+if __name__ == "__main__":
+    print("=== Agent with File Tools ===")
+    print("支持工具：bash, read_file, write_file, edit_file, glob, grep")
+    print("输入 exit 退出\n")
+
+    while True:
+        try:
+            user_input = input("你: ").strip()
+            if user_input.lower() in ["exit", "quit", "q"]:
+                break
+            if not user_input:
+                continue
+            print(f"\nAI: {agent_loop(user_input)}\n")
+        except KeyboardInterrupt:
+            print("\n再见！")
+            break
 ```
-
-详见 `01-minimal-loop/main.py`。
 
 ## 下一步
 
