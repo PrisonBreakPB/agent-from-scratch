@@ -32,7 +32,16 @@ LLM 有 token 限制，比如 128K tokens。当对话变长时：
 
 要决定何时压缩，首先要知道当前用了多少 token。
 
-**方法一：精确计算（调用 API）**
+**方法一：完全估算**
+
+粗略估算：1 个 token ≈ 3-4 个字符（中英文混合）
+
+```python
+def estimate_tokens(text):
+    return len(text) // 3
+```
+
+**方法二：精确计算（调用 API）**
 
 OpenAI 提供了 `tiktoken` 库，可以精确计算 token 数：
 
@@ -45,26 +54,39 @@ def count_tokens(text):
     return len(encoder.encode(text))
 ```
 
-**方法二：估算（不依赖 API）**
+**方法三：上一轮精确值 + 本轮输入估算（我们的选择）**
 
-粗略估算：1 个 token ≈ 3-4 个字符（中英文混合）
+OpenAI API 的响应里包含 token 使用量：
 
 ```python
-def estimate_tokens(text):
-    return len(text) // 3
+response = client.chat.completions.create(...)
+print(response.usage.total_tokens)  # 精确的 token 数
 ```
+
+我们可以利用这个信息：
+
+```python
+# 第一轮：没有上一轮数据，用估算
+current_tokens = len(user_input) // 3
+
+# 第二轮起：上一轮精确值 + 本轮输入估算
+current_tokens = last_token_usage + len(user_input) // 3
+```
+
+**注意：** 这个计算方法假设没有发生上下文压缩。如果发生压缩，实际 token 会减少，需要用压缩后的值重新计算。
 
 **对比：**
 
 | 方法 | 精度 | 速度 | 依赖 |
 |------|------|------|------|
+| 完全估算 | 粗略 | 快 | 无 |
 | tiktoken | 精确 | 慢 | 需要安装 |
-| 字符估算 | 粗略 | 快 | 无 |
+| 上一轮精确 + 本轮估算 | 较精确 | 快 | 无 |
 
-**我们的选择：** 用字符估算，因为：
+**我们的选择：** 方法三，因为：
 - 不需要额外依赖
 - 速度快
-- 精度够用（决定何时压缩，不需要精确到个位）
+- 精度较高（利用 API 返回的精确值）
 
 ### 压缩策略
 
