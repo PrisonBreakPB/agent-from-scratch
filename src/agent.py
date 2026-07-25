@@ -14,6 +14,7 @@ class AgentLoop:
         ]
         self.max_steps = 10
         self.context = ContextManager(max_tokens=config.max_context_tokens)
+        self.last_token_usage = 0  # 上一轮的精确 token 使用量
 
     def reset(self):
         """重置对话"""
@@ -30,8 +31,11 @@ class AgentLoop:
         """
         self.messages.append({"role": "user", "content": user_input})
 
-        # 检查是否需要压缩上下文
-        self.context.check_and_compress(self.messages, self.client)
+        # 检查是否需要压缩上下文（用上一轮的精确值 + 本轮输入估算）
+        estimated_new = len(user_input) // 3
+        current_tokens = self.last_token_usage + estimated_new
+        if current_tokens > self.context.max_tokens * 0.5:
+            self.context.check_and_compress(self.messages, self.client)
 
         for step in range(self.max_steps):
             try:
@@ -40,7 +44,8 @@ class AgentLoop:
                     model=self.model,
                     messages=self.messages,
                     tools=tools,
-                    stream=True  # 启用流式输出
+                    stream=True,  # 启用流式输出
+                    stream_options={"include_usage": True}  # 获取 token 使用量
                 )
             except Exception as e:
                 return f"API 调用失败: {e}"
@@ -74,6 +79,10 @@ class AgentLoop:
                                 tool_calls[tc.index]["function"]["name"] = tc.function.name
                             if tc.function.arguments:
                                 tool_calls[tc.index]["function"]["arguments"] += tc.function.arguments
+
+                # 获取 token 使用量（最后一个 chunk 包含 usage）
+                if hasattr(chunk, 'usage') and chunk.usage:
+                    self.last_token_usage = chunk.usage.total_tokens
 
             # 组装完整内容
             final_content = "".join(collected_tokens)
