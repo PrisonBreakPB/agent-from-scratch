@@ -220,47 +220,6 @@ if __name__ == "__main__":
     main()
 ```
 
-## 依赖安装
-
-```bash
-pip install rich prompt_toolkit
-```
-
-## 运行效果
-
-```bash
-# 交互模式
-python main.py
-
-# 指定模型
-python main.py -m gpt-4o-mini
-
-# 单次执行
-python main.py -p "列出当前目录的文件"
-```
-
-```
-╭─── Agent ───╮
-│ Model: gpt-4o-mini
-│ Type /help for commands, quit to exit.
-╰─────────────╯
-You > 列出当前目录的文件
-╭─ Response ──╮
-│ 当前目录有以下文件：
-│ - main.py
-│ - agent.py
-│ - tools/
-╰─────────────╯
-You > /help
-╭─── Help ────╮
-│ Commands:
-│   /help    Show this help
-│   /reset   Clear conversation history
-│   quit     Exit
-╰─────────────╯
-You > bye!
-```
-
 ## 流式输出
 
 ### 为什么需要流式输出？
