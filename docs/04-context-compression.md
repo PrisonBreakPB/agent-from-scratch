@@ -13,20 +13,74 @@
 
 ### 为什么需要上下文压缩？
 
-LLM 有 token 限制，比如 128K tokens。当对话变长时：
+很多人以为"只要没超过最大 token 数就没问题"。
+
+实际上，上下文越长，Agent 不一定越聪明，反而可能：
+- 更贵（每次调用都要发送完整历史）
+- 更慢（处理时间增加）
+- 更容易被无关信息干扰
+
+### Agent 的上下文增长特点
+
+普通聊天的上下文增长：
 
 ```
-第 1 轮：100 tokens
-第 2 轮：200 tokens
-...
-第 50 轮：50000 tokens
-第 100 轮：超出限制 ❌
+用户问题 → 模型回答
+用户追问 → 模型回答
 ```
 
-**问题：**
-- 工具返回的内容可能很长（比如读取大文件）
-- 对话历史会不断累积
-- 超出限制后 API 会报错
+Agent 的上下文增长：
+
+```
+用户任务
+→ 模型决策
+→ 调用工具
+→ 工具结果
+→ 再次调用工具
+→ 工具报错
+→ 重试
+→ 生成中间结论
+→ 继续执行
+```
+
+每一步都可能把以下内容加入上下文：
+- 工具参数
+- 工具返回结果（可能很长）
+- 错误信息
+- Agent 的中间计划
+- 历史对话
+
+**所以：** 没有压缩，长任务最终会因为上下文溢出而无法继续。
+
+### 上下文质量问题
+
+即使没有超限，上下文太长也会带来问题：
+
+| 问题 | 说明 |
+|------|------|
+| 上下文干扰 | 历史里有大量和当前步骤无关的内容，模型需要在其中寻找有用信息 |
+| 上下文污染 | 之前产生了一个错误判断，后面每轮都把错误当成已知事实继续使用 |
+| 上下文冲突 | 较早的工具结果和较新的工具结果不一致，模型不知道该相信哪个 |
+| 关键信息被淹没 | 重要的任务目标、约束或决策被大量工具输出淹没 |
+
+**所以：** 压缩不只是防止报错，也是为了减少干扰，让模型更容易抓住当前任务。
+
+### 压缩的目标
+
+上下文压缩不是简单地"删除旧消息"，而是：
+
+- **保留**对下一步决策有用的信息
+- **移除**重复、过时、低价值的信息
+- **把完整历史放到外部存储**，需要时再取回
+
+**应该保留的信息：**
+- 任务目标
+- 硬约束
+- 已经完成的步骤
+- 关键决策
+- 决策原因
+- 已验证事实
+- 未解决问题
 
 ### 如何计算上下文使用量？
 
@@ -132,25 +186,25 @@ def estimate_tokens(messages):
 class ContextManager:
     def __init__(self, max_tokens=128000):
         self.max_tokens = max_tokens
-        self._snip_at = int(max_tokens * 0.50)
-        self._summarize_at = int(max_tokens * 0.70)
-        self._collapse_at = int(max_tokens * 0.90)
+        self._truncate_at = int(max_tokens * 0.50)
+        self._summary_at = int(max_tokens * 0.70)
+        self._reset_at = int(max_tokens * 0.90)
 
-    def maybe_compress(self, messages, llm=None):
+    def check_and_compress(self, messages, llm=None):
         """检查是否需要压缩，执行压缩"""
         current = estimate_tokens(messages)
 
         # Layer 1: 截断工具输出
-        if current > self._snip_at:
-            self._snip_tool_outputs(messages)
+        if current > self._truncate_at:
+            self.truncate_tool_results(messages)
 
         # Layer 2: LLM 总结
-        if current > self._summarize_at:
-            self._summarize_old(messages, llm)
+        if current > self._summary_at:
+            self.summarize_history(messages, llm)
 
         # Layer 3: 硬压缩
-        if current > self._collapse_at:
-            self._hard_collapse(messages, llm)
+        if current > self._reset_at:
+            self.emergency_compress(messages, llm)
 ```
 
 **作用：** 根据 token 使用情况，自动选择压缩层级。
@@ -158,7 +212,7 @@ class ContextManager:
 ### Layer 1：截断工具输出
 
 ```python
-def _snip_tool_outputs(self, messages):
+def truncate_tool_results(self, messages):
     """截断冗长的工具输出"""
     for m in messages:
         if m.get("role") != "tool":
@@ -168,12 +222,12 @@ def _snip_tool_outputs(self, messages):
             continue
         # 保留前3行和后3行
         lines = content.splitlines()
-        snipped = (
+        truncated = (
             "\n".join(lines[:3])
-            + f"\n... ({len(lines)} lines, snipped) ...\n"
+            + f"\n... ({len(lines)} lines, truncated) ...\n"
             + "\n".join(lines[-3:])
         )
-        m["content"] = snipped
+        m["content"] = truncated
 ```
 
 **原理：** 工具输出通常很长，但大部分是中间内容，保留头尾即可。
@@ -181,12 +235,12 @@ def _snip_tool_outputs(self, messages):
 ### Layer 2：LLM 总结
 
 ```python
-def _summarize_old(self, messages, llm, keep_recent=8):
+def summarize_history(self, messages, llm, keep_recent=8):
     """用 LLM 总结旧对话"""
     old = messages[:-keep_recent]
     tail = messages[-keep_recent:]
 
-    summary = self._get_summary(old, llm)
+    summary = self._generate_summary(old, llm)
 
     messages.clear()
     messages.append({
@@ -205,10 +259,10 @@ def _summarize_old(self, messages, llm, keep_recent=8):
 ### Layer 3：硬压缩
 
 ```python
-def _hard_collapse(self, messages, llm):
+def emergency_compress(self, messages, llm):
     """最后手段：只保留摘要和最近4条消息"""
     tail = messages[-4:]
-    summary = self._get_summary(messages[:-4], llm)
+    summary = self._generate_summary(messages[:-4], llm)
 
     messages.clear()
     messages.append({
@@ -229,19 +283,26 @@ def _hard_collapse(self, messages, llm):
 ```python
 class AgentLoop:
     def __init__(self, config):
-        self.context = ContextManager(max_tokens=128000)
-        # ...
+        self.context = ContextManager(max_tokens=config.max_context_tokens)
+        self.last_token_usage = 0
 
     def chat(self, user_input, on_token=None):
         self.messages.append({"role": "user", "content": user_input})
 
-        # 每轮对话后检查压缩
-        self.context.maybe_compress(self.messages, self.client)
+        # 检查是否需要压缩（用上一轮精确值 + 本轮输入估算）
+        estimated_new = len(user_input) // 3
+        current_tokens = self.last_token_usage + estimated_new
+        if current_tokens > self.context.max_tokens * 0.5:
+            self.context.check_and_compress(self.messages, self.client)
 
         # ... 调用 LLM ...
+
+        # 更新 token 使用量
+        if hasattr(chunk, 'usage') and chunk.usage:
+            self.last_token_usage = chunk.usage.total_tokens
 ```
 
-**关键：** 在每轮对话后自动检查并压缩。
+**关键：** 用上一轮的精确值 + 本轮输入估算，更准确地判断何时压缩。
 
 ### 手动压缩：/compact 命令
 
@@ -269,18 +330,35 @@ You > /compact
 Compressed: 50000 → 15000 tokens
 ```
 
-## 运行效果
+## 当前实现的局限性
 
+我们的压缩策略是"简单摘要"，可能会丢失重要信息：
+
+**原始历史：**
 ```
-You > 读取一个大文件
-（文件内容显示）
-
-You > 继续讨论
-（对话变长，自动压缩）
-
-[对话摘要]
-之前读取了 config.py 文件，讨论了配置项的含义...
+我们因为 A 的性能问题选择方案 B，
+但 B 只适用于数据规模小于 10 万条的情况。
 ```
+
+**简单摘要：**
+```
+团队选择了方案 B。
+```
+
+这个摘要保留了"做了什么"，却丢掉了：
+- 为什么这么做
+- 适用条件是什么
+- 哪些方案被排除了
+
+**更好的方案：** 保留结构化状态，而不是简单摘要：
+- 任务目标
+- 硬约束
+- 关键决策
+- 决策原因
+- 已验证事实
+- 未解决问题
+
+这属于 Context Engineering 的范畴，不只是字符串截断。
 
 ## 下一步
 
